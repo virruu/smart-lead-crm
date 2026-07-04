@@ -37,15 +37,70 @@ class Smart_Lead_CRM_Ajax {
 	}
 
 	/**
+	 * Collect tracking signals from the current POST request (sent by tracker.js).
+	 *
+	 * @return array Normalized tracking signals.
+	 */
+	private function collect_post_tracking() {
+		$fields = array(
+			'gclid'        => 'sanitize_text_field',
+			'gbraid'       => 'sanitize_text_field',
+			'wbraid'       => 'sanitize_text_field',
+			'utm_source'   => 'sanitize_text_field',
+			'utm_medium'   => 'sanitize_text_field',
+			'utm_campaign' => 'sanitize_text_field',
+			'utm_term'     => 'sanitize_text_field',
+			'utm_content'  => 'sanitize_text_field',
+			'landing_page' => 'esc_url_raw',
+			'referer'      => 'esc_url_raw',
+			'device'       => 'sanitize_text_field',
+			'browser'      => 'sanitize_text_field',
+		);
+
+		$data = array();
+		foreach ( $fields as $key => $sanitize ) {
+			$data[ $key ] = isset( $_POST[ $key ] ) ? $sanitize( wp_unslash( $_POST[ $key ] ) ) : '';
+		}
+		return $data;
+	}
+
+	/**
+	 * Collect tracking signals from cookies (used by the form submit flow).
+	 *
+	 * @return array Normalized tracking signals.
+	 */
+	private function collect_cookie_tracking() {
+		$tracker = smart_lead_crm()->tracker;
+		$t       = $tracker->get_tracking_data();
+
+		return array(
+			'gclid'        => isset( $t['slcrm_gclid'] ) ? $t['slcrm_gclid'] : '',
+			'gbraid'       => isset( $t['slcrm_gbraid'] ) ? $t['slcrm_gbraid'] : '',
+			'wbraid'       => isset( $t['slcrm_wbraid'] ) ? $t['slcrm_wbraid'] : '',
+			'utm_source'   => isset( $t['slcrm_utm_source'] ) ? $t['slcrm_utm_source'] : '',
+			'utm_medium'   => isset( $t['slcrm_utm_medium'] ) ? $t['slcrm_utm_medium'] : '',
+			'utm_campaign' => isset( $t['slcrm_utm_campaign'] ) ? $t['slcrm_utm_campaign'] : '',
+			'utm_term'     => isset( $t['slcrm_utm_term'] ) ? $t['slcrm_utm_term'] : '',
+			'utm_content'  => isset( $t['slcrm_utm_content'] ) ? $t['slcrm_utm_content'] : '',
+			'landing_page' => isset( $t['slcrm_landing_page'] ) ? $t['slcrm_landing_page'] : '',
+			'referer'      => isset( $t['slcrm_referer'] ) ? $t['slcrm_referer'] : '',
+			'device'       => isset( $t['slcrm_device'] ) ? $t['slcrm_device'] : '',
+			'browser'      => isset( $t['slcrm_browser'] ) ? $t['slcrm_browser'] : '',
+		);
+	}
+
+	/**
 	 * Auto-create a lead when a visitor clicks a WhatsApp or tel: link.
 	 *
 	 * Triggered by tracker.js. No form submission required.
 	 * Deduplicates by visitor_id — one lead per visitor per day.
+	 * On return visits, upgrades the lead's attribution if a higher-priority
+	 * source is detected and persists the latest tracking values.
 	 */
 	public function auto_create_lead() {
 		check_ajax_referer( 'slcrm_public_nonce', 'nonce' );
 
-		$visitor_id = isset( $_POST['visitor_id'] ) ? sanitize_text_field( wp_unslash( $_POST['visitor_id'] ) ) : '';
+		$visitor_id  = isset( $_POST['visitor_id'] ) ? sanitize_text_field( wp_unslash( $_POST['visitor_id'] ) ) : '';
 		$lead_action = isset( $_POST['lead_action'] ) ? sanitize_text_field( wp_unslash( $_POST['lead_action'] ) ) : '';
 		$phone       = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
 
@@ -53,57 +108,80 @@ class Smart_Lead_CRM_Ajax {
 			wp_send_json_error( array( 'message' => 'No visitor ID.' ) );
 		}
 
-		$plugin  = smart_lead_crm();
-		$helper  = $plugin->helper;
-		$db      = $plugin->db;
+		$plugin      = smart_lead_crm();
+		$helper      = $plugin->helper;
+		$db          = $plugin->db;
+		$attribution = $plugin->attribution;
+
+		$tracking = $this->collect_post_tracking();
+
+		// Resolve attribution using the full priority engine.
+		$signals             = $tracking;
+		$signals['lead_action'] = $lead_action;
+		$attrib = $attribution->resolve( $signals );
 
 		// Dedup: check if this visitor already has a lead created today.
 		$existing = $db->find_lead_by_visitor_today( $visitor_id );
 		if ( $existing ) {
-			// Update the existing lead's phone if we now have one and it was empty.
+			$update_data = array();
+
+			// Update phone if we now have one and it was empty.
 			if ( ! empty( $phone ) && empty( $existing->phone ) ) {
-				$db->update_lead( $existing->id, array( 'phone' => $phone ) );
+				$update_data['phone'] = $phone;
 			}
+
+			// Upgrade attribution if the new source is higher priority.
+			if ( $attribution->should_upgrade( $existing->lead_source, $attrib['source'] ) ) {
+				$update_data['lead_source'] = $attrib['source'];
+				$update_data['medium']      = $attrib['medium'];
+				$update_data['campaign']    = $attrib['campaign'];
+				$update_data['ad_group']     = $attrib['ad_group'];
+				$update_data['keyword']     = $attrib['keyword'];
+			}
+
+			// Always persist the latest tracking values so the lead row stays
+			// complete for reporting and offline conversion uploads.
+			$update_data['gclid']        = $tracking['gclid'];
+			$update_data['gbraid']       = $tracking['gbraid'];
+			$update_data['wbraid']       = $tracking['wbraid'];
+			$update_data['utm_source']   = $tracking['utm_source'];
+			$update_data['utm_medium']   = $tracking['utm_medium'];
+			$update_data['utm_campaign'] = $tracking['utm_campaign'];
+			$update_data['utm_term']     = $tracking['utm_term'];
+			$update_data['utm_content']  = $tracking['utm_content'];
+
+			if ( ! empty( $update_data ) ) {
+				$db->update_lead( $existing->id, $update_data );
+			}
+
 			// Still log the tracking visit.
-			$this->log_tracking( $existing->id, $visitor_id, $helper );
+			$this->log_tracking( $existing->id, $visitor_id, $helper, $tracking );
 			wp_send_json_success( array( 'message' => 'Lead already exists.', 'lead_id' => $existing->id ) );
 		}
 
-		// Collect tracking data from POST (sent by tracker.js from cookies).
-		$gclid        = isset( $_POST['gclid'] ) ? sanitize_text_field( wp_unslash( $_POST['gclid'] ) ) : '';
-		$gbraid       = isset( $_POST['gbraid'] ) ? sanitize_text_field( wp_unslash( $_POST['gbraid'] ) ) : '';
-		$wbraid       = isset( $_POST['wbraid'] ) ? sanitize_text_field( wp_unslash( $_POST['wbraid'] ) ) : '';
-		$utm_source   = isset( $_POST['utm_source'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_source'] ) ) : '';
-		$utm_medium   = isset( $_POST['utm_medium'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_medium'] ) ) : '';
-		$utm_campaign = isset( $_POST['utm_campaign'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_campaign'] ) ) : '';
-		$utm_term     = isset( $_POST['utm_term'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_term'] ) ) : '';
-		$utm_content   = isset( $_POST['utm_content'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_content'] ) ) : '';
-		$landing_page = isset( $_POST['landing_page'] ) ? esc_url_raw( wp_unslash( $_POST['landing_page'] ) ) : '';
-		$referer      = isset( $_POST['referer'] ) ? esc_url_raw( wp_unslash( $_POST['referer'] ) ) : '';
-		$device       = isset( $_POST['device'] ) ? sanitize_text_field( wp_unslash( $_POST['device'] ) ) : '';
-		$browser      = isset( $_POST['browser'] ) ? sanitize_text_field( wp_unslash( $_POST['browser'] ) ) : '';
-
-		// Determine source.
-		$source = $this->determine_source_from_data( $gclid, $utm_source, $referer );
-
-		// Determine lead source label for the action.
-		if ( 'whatsapp' === $lead_action ) {
-			$source = empty( $source ) ? 'whatsapp' : $source;
-		} elseif ( 'call' === $lead_action ) {
-			$source = empty( $source ) ? 'manual' : $source;
-		}
-
+		// Build lead data with full attribution stored permanently on the lead row.
 		$lead_data = array(
 			'visitor_id'    => $visitor_id,
 			'phone'         => $phone,
 			'status'        => 'pending',
-			'lead_source'   => $source,
-			'campaign'      => $utm_campaign,
-			'landing_page'  => $landing_page,
-			'device'        => $device,
-			'browser'       => $browser,
+			'lead_source'   => $attrib['source'],
+			'medium'        => $attrib['medium'],
+			'campaign'      => $attrib['campaign'],
+			'ad_group'      => $attrib['ad_group'],
+			'keyword'       => $attrib['keyword'],
+			'gclid'         => $tracking['gclid'],
+			'gbraid'        => $tracking['gbraid'],
+			'wbraid'        => $tracking['wbraid'],
+			'utm_source'    => $tracking['utm_source'],
+			'utm_medium'    => $tracking['utm_medium'],
+			'utm_campaign'  => $tracking['utm_campaign'],
+			'utm_term'      => $tracking['utm_term'],
+			'utm_content'   => $tracking['utm_content'],
+			'landing_page'  => $tracking['landing_page'],
+			'device'        => $tracking['device'],
+			'browser'       => $tracking['browser'],
 			'ip'            => $helper->get_client_ip(),
-			'referer'       => $referer,
+			'referer'       => $tracking['referer'],
 			'remarks'       => ( 'whatsapp' === $lead_action ) ? 'Auto-created: WhatsApp click' : ( 'call' === $lead_action ? 'Auto-created: Phone call click' : 'Auto-created' ),
 		);
 
@@ -113,27 +191,27 @@ class Smart_Lead_CRM_Ajax {
 			wp_send_json_error( array( 'message' => 'Failed to create lead.' ) );
 		}
 
-		// Store tracking record.
+		// Store tracking record (visit history).
 		$tracking_data = array(
 			'lead_id'       => $lead_id,
 			'visitor_id'    => $visitor_id,
-			'gclid'         => $gclid,
-			'gbraid'        => $gbraid,
-			'wbraid'        => $wbraid,
-			'utm_source'    => $utm_source,
-			'utm_medium'    => $utm_medium,
-			'utm_campaign'  => $utm_campaign,
-			'utm_term'      => $utm_term,
-			'utm_content'   => $utm_content,
-			'landing_page'  => $landing_page,
-			'referer'       => $referer,
-			'device'        => $device,
-			'browser'       => $browser,
+			'gclid'         => $tracking['gclid'],
+			'gbraid'        => $tracking['gbraid'],
+			'wbraid'        => $tracking['wbraid'],
+			'utm_source'    => $tracking['utm_source'],
+			'utm_medium'    => $tracking['utm_medium'],
+			'utm_campaign'  => $tracking['utm_campaign'],
+			'utm_term'      => $tracking['utm_term'],
+			'utm_content'   => $tracking['utm_content'],
+			'landing_page'  => $tracking['landing_page'],
+			'referer'       => $tracking['referer'],
+			'device'        => $tracking['device'],
+			'browser'       => $tracking['browser'],
 			'ip'            => $helper->get_client_ip(),
 		);
 		$db->insert_tracking( $tracking_data );
 
-		$helper->log( 'Auto-lead created: ID ' . $lead_id . ' visitor=' . substr( $visitor_id, 0, 8 ) . ' action=' . $lead_action );
+		$helper->log( 'Auto-lead created: ID ' . $lead_id . ' visitor=' . substr( $visitor_id, 0, 8 ) . ' action=' . $lead_action . ' source=' . $attrib['source'] );
 
 		wp_send_json_success( array( 'message' => 'Lead created.', 'lead_id' => $lead_id ) );
 	}
@@ -144,64 +222,30 @@ class Smart_Lead_CRM_Ajax {
 	 * @param int                  $lead_id    Lead ID.
 	 * @param string               $visitor_id Visitor ID.
 	 * @param Smart_Lead_CRM_Helper $helper     Helper instance.
+	 * @param array                $tracking   Pre-collected tracking data.
 	 */
-	private function log_tracking( $lead_id, $visitor_id, $helper ) {
-		$gclid        = isset( $_POST['gclid'] ) ? sanitize_text_field( wp_unslash( $_POST['gclid'] ) ) : '';
-		$gbraid       = isset( $_POST['gbraid'] ) ? sanitize_text_field( wp_unslash( $_POST['gbraid'] ) ) : '';
-		$wbraid       = isset( $_POST['wbraid'] ) ? sanitize_text_field( wp_unslash( $_POST['wbraid'] ) ) : '';
-		$utm_source   = isset( $_POST['utm_source'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_source'] ) ) : '';
-		$utm_medium   = isset( $_POST['utm_medium'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_medium'] ) ) : '';
-		$utm_campaign = isset( $_POST['utm_campaign'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_campaign'] ) ) : '';
-		$utm_term     = isset( $_POST['utm_term'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_term'] ) ) : '';
-		$utm_content   = isset( $_POST['utm_content'] ) ? sanitize_text_field( wp_unslash( $_POST['utm_content'] ) ) : '';
-		$landing_page = isset( $_POST['landing_page'] ) ? esc_url_raw( wp_unslash( $_POST['landing_page'] ) ) : '';
-		$referer      = isset( $_POST['referer'] ) ? esc_url_raw( wp_unslash( $_POST['referer'] ) ) : '';
-		$device       = isset( $_POST['device'] ) ? sanitize_text_field( wp_unslash( $_POST['device'] ) ) : '';
-		$browser      = isset( $_POST['browser'] ) ? sanitize_text_field( wp_unslash( $_POST['browser'] ) ) : '';
+	private function log_tracking( $lead_id, $visitor_id, $helper, $tracking = null ) {
+		if ( null === $tracking ) {
+			$tracking = $this->collect_post_tracking();
+		}
 
 		smart_lead_crm()->db->insert_tracking( array(
 			'lead_id'       => $lead_id,
 			'visitor_id'    => $visitor_id,
-			'gclid'         => $gclid,
-			'gbraid'        => $gbraid,
-			'wbraid'        => $wbraid,
-			'utm_source'    => $utm_source,
-			'utm_medium'    => $utm_medium,
-			'utm_campaign'  => $utm_campaign,
-			'utm_term'      => $utm_term,
-			'utm_content'   => $utm_content,
-			'landing_page'  => $landing_page,
-			'referer'       => $referer,
-			'device'        => $device,
-			'browser'       => $browser,
+			'gclid'         => $tracking['gclid'],
+			'gbraid'        => $tracking['gbraid'],
+			'wbraid'        => $tracking['wbraid'],
+			'utm_source'    => $tracking['utm_source'],
+			'utm_medium'    => $tracking['utm_medium'],
+			'utm_campaign'  => $tracking['utm_campaign'],
+			'utm_term'      => $tracking['utm_term'],
+			'utm_content'   => $tracking['utm_content'],
+			'landing_page'  => $tracking['landing_page'],
+			'referer'       => $tracking['referer'],
+			'device'        => $tracking['device'],
+			'browser'       => $tracking['browser'],
 			'ip'            => $helper->get_client_ip(),
 		) );
-	}
-
-	/**
-	 * Determine lead source from tracking data (server-side version).
-	 *
-	 * @param string $gclid      GCLID value.
-	 * @param string $utm_source UTM source.
-	 * @param string $referer    Referrer.
-	 * @return string
-	 */
-	private function determine_source_from_data( $gclid, $utm_source, $referer ) {
-		if ( ! empty( $gclid ) ) {
-			return 'google_ads';
-		}
-		if ( ! empty( $utm_source ) ) {
-			$source = strtolower( $utm_source );
-			if ( strpos( $source, 'facebook' ) !== false ) return 'facebook';
-			if ( strpos( $source, 'instagram' ) !== false ) return 'instagram';
-			if ( strpos( $source, 'google' ) !== false ) return 'organic';
-			return 'referral';
-		}
-		$ref = strtolower( $referer );
-		if ( strpos( $ref, 'google' ) !== false ) return 'organic';
-		if ( strpos( $ref, 'facebook' ) !== false ) return 'facebook';
-		if ( strpos( $ref, 'instagram' ) !== false ) return 'instagram';
-		return '';
 	}
 
 	/**
@@ -218,26 +262,40 @@ class Smart_Lead_CRM_Ajax {
 			wp_send_json_error( array( 'message' => __( 'Phone number is required.', 'smart-lead-crm' ) ) );
 		}
 
-		$plugin  = smart_lead_crm();
-		$tracker = $plugin->tracker;
-		$helper  = $plugin->helper;
-		$db      = $plugin->db;
+		$plugin      = smart_lead_crm();
+		$helper      = $plugin->helper;
+		$db          = $plugin->db;
+		$attribution = $plugin->attribution;
 
 		// Get tracking data from cookies.
-		$tracking = $tracker->get_tracking_data();
+		$tracking = $this->collect_cookie_tracking();
+
+		// Resolve attribution.
+		$attrib = $attribution->resolve( $tracking );
 
 		$lead_data = array(
 			'phone'         => $phone,
 			'name'          => $name,
 			'email'         => $email,
 			'status'        => 'pending',
-			'lead_source'   => $this->determine_source( $tracking ),
-			'campaign'      => $tracking['slcrm_utm_campaign'],
-			'landing_page'  => $tracking['slcrm_landing_page'],
-			'device'        => $tracking['slcrm_device'],
-			'browser'       => $tracking['slcrm_browser'],
+			'lead_source'   => $attrib['source'],
+			'medium'        => $attrib['medium'],
+			'campaign'      => $attrib['campaign'],
+			'ad_group'      => $attrib['ad_group'],
+			'keyword'       => $attrib['keyword'],
+			'gclid'         => $tracking['gclid'],
+			'gbraid'        => $tracking['gbraid'],
+			'wbraid'        => $tracking['wbraid'],
+			'utm_source'    => $tracking['utm_source'],
+			'utm_medium'    => $tracking['utm_medium'],
+			'utm_campaign'  => $tracking['utm_campaign'],
+			'utm_term'      => $tracking['utm_term'],
+			'utm_content'   => $tracking['utm_content'],
+			'landing_page'  => $tracking['landing_page'],
+			'device'        => $tracking['device'],
+			'browser'       => $tracking['browser'],
 			'ip'            => $helper->get_client_ip(),
-			'referer'       => $tracking['slcrm_referer'],
+			'referer'       => $tracking['referer'],
 		);
 
 		$lead_id = $db->insert_lead( $lead_data );
@@ -249,64 +307,28 @@ class Smart_Lead_CRM_Ajax {
 		// Store tracking record.
 		$tracking_data = array(
 			'lead_id'       => $lead_id,
-			'gclid'         => $tracking['slcrm_gclid'],
-			'gbraid'        => $tracking['slcrm_gbraid'],
-			'wbraid'        => $tracking['slcrm_wbraid'],
-			'utm_source'    => $tracking['slcrm_utm_source'],
-			'utm_medium'    => $tracking['slcrm_utm_medium'],
-			'utm_campaign'  => $tracking['slcrm_utm_campaign'],
-			'utm_term'      => $tracking['slcrm_utm_term'],
-			'utm_content'   => $tracking['slcrm_utm_content'],
-			'landing_page'  => $tracking['slcrm_landing_page'],
-			'referer'       => $tracking['slcrm_referer'],
-			'device'        => $tracking['slcrm_device'],
-			'browser'       => $tracking['slcrm_browser'],
+			'gclid'         => $tracking['gclid'],
+			'gbraid'        => $tracking['gbraid'],
+			'wbraid'        => $tracking['wbraid'],
+			'utm_source'    => $tracking['utm_source'],
+			'utm_medium'    => $tracking['utm_medium'],
+			'utm_campaign'  => $tracking['utm_campaign'],
+			'utm_term'      => $tracking['utm_term'],
+			'utm_content'   => $tracking['utm_content'],
+			'landing_page'  => $tracking['landing_page'],
+			'referer'       => $tracking['referer'],
+			'device'        => $tracking['device'],
+			'browser'       => $tracking['browser'],
 			'ip'            => $helper->get_client_ip(),
 		);
 		$db->insert_tracking( $tracking_data );
 
-		$helper->log( 'New lead captured: ID ' . $lead_id . ' from ' . $phone );
+		$helper->log( 'New lead captured: ID ' . $lead_id . ' from ' . $phone . ' source=' . $attrib['source'] );
 
 		wp_send_json_success( array(
 			'message' => __( 'Thank you! We will contact you soon.', 'smart-lead-crm' ),
 			'lead_id' => $lead_id,
 		) );
-	}
-
-	/**
-	 * Determine lead source from tracking data.
-	 *
-	 * @param array $tracking Tracking data.
-	 * @return string
-	 */
-	private function determine_source( $tracking ) {
-		if ( ! empty( $tracking['slcrm_gclid'] ) ) {
-			return 'google_ads';
-		}
-		if ( ! empty( $tracking['slcrm_utm_source'] ) ) {
-			$source = strtolower( $tracking['slcrm_utm_source'] );
-			if ( strpos( $source, 'facebook' ) !== false ) {
-				return 'facebook';
-			}
-			if ( strpos( $source, 'instagram' ) !== false ) {
-				return 'instagram';
-			}
-			if ( strpos( $source, 'google' ) !== false ) {
-				return 'organic';
-			}
-			return 'referral';
-		}
-		$referer = strtolower( $tracking['slcrm_referer'] );
-		if ( strpos( $referer, 'google' ) !== false ) {
-			return 'organic';
-		}
-		if ( strpos( $referer, 'facebook' ) !== false ) {
-			return 'facebook';
-		}
-		if ( strpos( $referer, 'instagram' ) !== false ) {
-			return 'instagram';
-		}
-		return 'manual';
 	}
 
 	/**
@@ -324,7 +346,7 @@ class Smart_Lead_CRM_Ajax {
 			wp_send_json_error( array( 'message' => __( 'Invalid lead ID.', 'smart-lead-crm' ) ) );
 		}
 
-		$fields = array( 'name', 'phone', 'email', 'status', 'lead_source', 'campaign', 'booking_route', 'remarks' );
+		$fields = array( 'name', 'phone', 'email', 'status', 'lead_source', 'medium', 'campaign', 'ad_group', 'keyword', 'booking_route', 'remarks' );
 		$data   = array();
 		foreach ( $fields as $field ) {
 			if ( isset( $_POST[ $field ] ) ) {
