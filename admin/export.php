@@ -27,6 +27,11 @@ if ( isset( $_GET['slcrm_export'] ) && isset( $_GET['_wpnonce'] ) ) {
 			if ( $result['success'] ) {
 				$export->download_csv( $result['csv'], $result['filename'] );
 			}
+		} elseif ( 'full_attribution' === $export_type ) {
+			$result = $export->export_full_attribution();
+			if ( $result['success'] ) {
+				$export->download_csv( $result['csv'], $result['filename'] );
+			}
 		}
 	}
 }
@@ -92,5 +97,15 @@ if ( isset( $_GET['slcrm_export'] ) && isset( $_GET['_wpnonce'] ) ) {
 			<li><?php esc_html_e( 'Upload the CSV file with hashed data.', 'smart-lead-crm' ); ?></li>
 			<li><?php esc_html_e( 'Google will create a remarketing audience from your customer data.', 'smart-lead-crm' ); ?></li>
 		</ol>
+		<div class="slcrm-card">
+			<h2><?php esc_html_e( 'Full Attribution Export', 'smart-lead-crm' ); ?></h2>
+			<p><?php esc_html_e( 'Export every lead with all stored tracking fields (GCLID, GBRAID, WBRAID, all UTM parameters, source, medium, campaign, keyword, landing page). Ideal for BI tools, Google Sheets, and custom ROI analysis.', 'smart-lead-crm' ); ?></p>
+			<form method="post">
+				<input type="hidden" name="slcrm_export_type" value="full_attribution" />
+				<?php wp_nonce_field( 'slcrm_export' ); ?>
+				<button type="submit" class="button button-primary"><?php esc_html_e( 'Export Full Attribution CSV', 'smart-lead-crm' ); ?></button>
+			</form>
+		</div>
+
 	</div>
 </div>
