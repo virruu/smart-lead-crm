@@ -60,7 +60,18 @@ if ( 'view' === $action && $lead_id ) {
 								<?php endforeach; ?>
 							</select>
 						</td></tr>
+						<tr><th><?php esc_html_e( 'Source', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $helper->get_source_label( $lead->lead_source ) ); ?> <span class="description">(<?php echo esc_html( $lead->medium ? $lead->medium : '—' ); ?>)</span></td></tr>
 						<tr><th><?php esc_html_e( 'Campaign', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-campaign" value="<?php echo esc_attr( $lead->campaign ); ?>" /></td></tr>
+						<tr><th><?php esc_html_e( 'Ad Group', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-ad-group" value="<?php echo esc_attr( $lead->ad_group ); ?>" /></td></tr>
+						<tr><th><?php esc_html_e( 'Keyword', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-keyword" value="<?php echo esc_attr( $lead->keyword ); ?>" /></td></tr>
+						<tr><th><?php esc_html_e( 'GCLID', 'smart-lead-crm' ); ?></th><td><code><?php echo esc_html( $lead->gclid ? substr( $lead->gclid, 0, 40 ) . '…' : '—' ); ?></code></td></tr>
+						<tr><th><?php esc_html_e( 'GBRAID', 'smart-lead-crm' ); ?></th><td><code><?php echo esc_html( $lead->gbraid ? substr( $lead->gbraid, 0, 40 ) . '…' : '—' ); ?></code></td></tr>
+						<tr><th><?php esc_html_e( 'WBRAID', 'smart-lead-crm' ); ?></th><td><code><?php echo esc_html( $lead->wbraid ? substr( $lead->wbraid, 0, 40 ) . '…' : '—' ); ?></code></td></tr>
+						<tr><th><?php esc_html_e( 'UTM Source', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->utm_source ? $lead->utm_source : '—' ); ?></td></tr>
+						<tr><th><?php esc_html_e( 'UTM Medium', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->utm_medium ? $lead->utm_medium : '—' ); ?></td></tr>
+						<tr><th><?php esc_html_e( 'UTM Campaign', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->utm_campaign ? $lead->utm_campaign : '—' ); ?></td></tr>
+						<tr><th><?php esc_html_e( 'UTM Term', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->utm_term ? $lead->utm_term : '—' ); ?></td></tr>
+						<tr><th><?php esc_html_e( 'UTM Content', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->utm_content ? $lead->utm_content : '—' ); ?></td></tr>
 						<tr><th><?php esc_html_e( 'Booking Route', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-route" value="<?php echo esc_attr( $lead->booking_route ); ?>" /></td></tr>
 						<tr><th><?php esc_html_e( 'Booking Date', 'smart-lead-crm' ); ?></th><td><input type="date" id="slcrm-lead-booking-date" value="<?php echo esc_attr( $lead->booking_date ? $lead->booking_date : '' ); ?>" /></td></tr>
 						<tr><th><?php esc_html_e( 'Landing Page', 'smart-lead-crm' ); ?></th><td><a href="<?php echo esc_url( $lead->landing_page ); ?>" target="_blank"><?php echo esc_html( $lead->landing_page ); ?></a></td></tr>
