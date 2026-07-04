@@ -79,7 +79,7 @@ class Smart_Lead_CRM_Installer {
 		$bookings_table  = $this->tables['bookings'];
 		$notes_table     = $this->tables['notes'];
 
-		// Leads table.
+		// Leads table — stores full attribution data permanently for reporting.
 		$sql_leads = "CREATE TABLE {$leads_table} (
 			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			created_at DATETIME NOT NULL,
@@ -89,9 +89,18 @@ class Smart_Lead_CRM_Installer {
 			email VARCHAR(255) NOT NULL DEFAULT '',
 			status VARCHAR(50) NOT NULL DEFAULT 'pending',
 			lead_source VARCHAR(100) NOT NULL DEFAULT '',
+			medium VARCHAR(100) NOT NULL DEFAULT '',
 			campaign VARCHAR(255) NOT NULL DEFAULT '',
 			ad_group VARCHAR(255) NOT NULL DEFAULT '',
 			keyword VARCHAR(255) NOT NULL DEFAULT '',
+			gclid VARCHAR(255) NOT NULL DEFAULT '',
+			gbraid VARCHAR(255) NOT NULL DEFAULT '',
+			wbraid VARCHAR(255) NOT NULL DEFAULT '',
+			utm_source VARCHAR(255) NOT NULL DEFAULT '',
+			utm_medium VARCHAR(255) NOT NULL DEFAULT '',
+			utm_campaign VARCHAR(255) NOT NULL DEFAULT '',
+			utm_term VARCHAR(255) NOT NULL DEFAULT '',
+			utm_content VARCHAR(255) NOT NULL DEFAULT '',
 			landing_page TEXT NOT NULL,
 			booking_route VARCHAR(255) NOT NULL DEFAULT '',
 			booking_date DATE NULL DEFAULT NULL,
@@ -106,7 +115,9 @@ class Smart_Lead_CRM_Installer {
 			KEY visitor_id (visitor_id),
 			KEY status (status),
 			KEY lead_source (lead_source),
-			KEY created_at (created_at)
+			KEY created_at (created_at),
+			KEY gclid (gclid(50)),
+			KEY campaign (campaign(50))
 		) {$charset_collate};";
 
 		// Tracking table - one lead can have multiple visits.
@@ -174,6 +185,9 @@ class Smart_Lead_CRM_Installer {
 		// Migration: add visitor_id column to existing tables if upgrading.
 		$this->maybe_add_visitor_id_column( $leads_table, 'leads' );
 		$this->maybe_add_visitor_id_column( $tracking_table, 'tracking' );
+
+		// Migration: add attribution columns to leads table (1.1.0 → 1.2.0).
+		$this->maybe_add_attribution_columns( $leads_table );
 	}
 
 	/**
@@ -193,6 +207,44 @@ class Smart_Lead_CRM_Installer {
 				$wpdb->query( "ALTER TABLE {$table} ADD COLUMN visitor_id VARCHAR(36) NOT NULL DEFAULT '' AFTER lead_id" );
 			}
 			$wpdb->query( "ALTER TABLE {$table} ADD INDEX visitor_id (visitor_id)" );
+		}
+	}
+
+	/**
+	 * Add attribution columns to the leads table if they don't exist.
+	 *
+	 * This migration adds the permanent storage for gclid, gbraid, wbraid, and
+	 * all UTM parameters directly on the lead row so reports and offline
+	 * conversion uploads can be generated without joining the tracking table.
+	 *
+	 * @param string $table Leads table name.
+	 */
+	private function maybe_add_attribution_columns( $table ) {
+		global $wpdb;
+
+		$columns = array(
+			'medium'       => "ADD COLUMN medium VARCHAR(100) NOT NULL DEFAULT '' AFTER lead_source",
+			'gclid'        => "ADD COLUMN gclid VARCHAR(255) NOT NULL DEFAULT '' AFTER keyword",
+			'gbraid'       => "ADD COLUMN gbraid VARCHAR(255) NOT NULL DEFAULT '' AFTER gclid",
+			'wbraid'       => "ADD COLUMN wbraid VARCHAR(255) NOT NULL DEFAULT '' AFTER gbraid",
+			'utm_source'   => "ADD COLUMN utm_source VARCHAR(255) NOT NULL DEFAULT '' AFTER wbraid",
+			'utm_medium'   => "ADD COLUMN utm_medium VARCHAR(255) NOT NULL DEFAULT '' AFTER utm_source",
+			'utm_campaign' => "ADD COLUMN utm_campaign VARCHAR(255) NOT NULL DEFAULT '' AFTER utm_medium",
+			'utm_term'     => "ADD COLUMN utm_term VARCHAR(255) NOT NULL DEFAULT '' AFTER utm_campaign",
+			'utm_content'  => "ADD COLUMN utm_content VARCHAR(255) NOT NULL DEFAULT '' AFTER utm_term",
+		);
+
+		foreach ( $columns as $column => $ddl ) {
+			$exists = $wpdb->get_results( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+			if ( empty( $exists ) ) {
+				$wpdb->query( "ALTER TABLE {$table} {$ddl}" );
+			}
+		}
+
+		// Add index on gclid for offline conversion lookups.
+		$index_exists = $wpdb->get_results( $wpdb->prepare( "SHOW INDEX FROM {$table} WHERE Key_name = %s", 'gclid' ) );
+		if ( empty( $index_exists ) ) {
+			$wpdb->query( "ALTER TABLE {$table} ADD INDEX gclid (gclid(50))" );
 		}
 	}
 
