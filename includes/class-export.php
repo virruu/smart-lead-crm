@@ -55,12 +55,15 @@ class Smart_Lead_CRM_Export {
 		$bookings_table = $this->db->table( 'bookings' );
 
 		// Get booked leads with tracking and booking data.
+		// Attribution fields now live directly on the lead row, so we no longer
+		// need to join the tracking table — every booked lead carries its own
+		// gclid/gbraid/wbraid/utm values for the offline conversion upload.
 		$query = $wpdb->prepare(
-			"SELECT l.id, l.name, l.phone, l.created_at, l.campaign,
-				t.gclid, t.gbraid, t.wbraid,
+			"SELECT l.id, l.name, l.phone, l.created_at, l.campaign, l.keyword, l.ad_group,
+				l.gclid, l.gbraid, l.wbraid,
+				l.utm_source, l.utm_medium, l.utm_campaign, l.utm_term, l.utm_content,
 				b.fare, b.booking_date, b.route, b.booking_type
 			FROM {$leads_table} l
-			LEFT JOIN {$tracking_table} t ON t.lead_id = l.id
 			LEFT JOIN {$bookings_table} b ON b.lead_id = l.id
 			WHERE l.status = %s AND b.status = %s
 			ORDER BY l.created_at DESC",
@@ -200,6 +203,84 @@ class Smart_Lead_CRM_Export {
 			'success'  => true,
 			'csv'      => $csv,
 			'filename' => 'customer-match-' . date( 'Y-m-d' ) . '.csv',
+			'count'    => count( $rows ) - 1,
+		);
+	}
+
+	/**
+	 * Export full attribution CSV — every lead with all stored tracking fields.
+	 *
+	 * Useful for importing into BI tools, Google Sheets, or building custom
+	 * campaign/keyword ROI reports outside WordPress.
+	 *
+	 * @return array Result with CSV content or error.
+	 */
+	public function export_full_attribution() {
+		global $wpdb;
+
+		$leads_table = $this->db->table( 'leads' );
+
+		$results = $wpdb->get_results(
+			"SELECT id, created_at, name, phone, email, status, lead_source, medium,
+				campaign, ad_group, keyword, gclid, gbraid, wbraid,
+				utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+				landing_page, booking_route, device, browser, ip, referer
+			FROM {$leads_table}
+			ORDER BY created_at DESC"
+		);
+
+		if ( empty( $results ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'No leads found to export.', 'smart-lead-crm' ),
+			);
+		}
+
+		$rows   = array();
+		$rows[] = array(
+			'Lead ID', 'Created At', 'Name', 'Phone', 'Email', 'Status',
+			'Source', 'Medium', 'Campaign', 'Ad Group', 'Keyword',
+			'GCLID', 'GBRAID', 'WBRAID',
+			'UTM Source', 'UTM Medium', 'UTM Campaign', 'UTM Term', 'UTM Content',
+			'Landing Page', 'Booking Route', 'Device', 'Browser', 'IP', 'Referer',
+		);
+
+		foreach ( $results as $row ) {
+			$rows[] = array(
+				$row->id,
+				$row->created_at,
+				$row->name,
+				$row->phone,
+				$row->email,
+				$row->status,
+				$row->lead_source,
+				$row->medium,
+				$row->campaign,
+				$row->ad_group,
+				$row->keyword,
+				$row->gclid,
+				$row->gbraid,
+				$row->wbraid,
+				$row->utm_source,
+				$row->utm_medium,
+				$row->utm_campaign,
+				$row->utm_term,
+				$row->utm_content,
+				$row->landing_page,
+				$row->booking_route,
+				$row->device,
+				$row->browser,
+				$row->ip,
+				$row->referer,
+			);
+		}
+
+		$csv = $this->array_to_csv( $rows );
+
+		return array(
+			'success'  => true,
+			'csv'      => $csv,
+			'filename' => 'full-attribution-' . date( 'Y-m-d' ) . '.csv',
 			'count'    => count( $rows ) - 1,
 		);
 	}
