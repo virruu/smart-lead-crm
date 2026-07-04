@@ -3,7 +3,7 @@
  * Plugin Name:       Smart Lead CRM
  * Plugin URI:        https://example.com/smart-lead-crm
  * Description:       A business operating system for lead capture, tracking, and reporting. Automatically captures GCLID, GBRAID, WBRAID, UTM parameters, device, browser, and referrer data.
- * Version:           1.0.0
+ * Version:           1.2.0
  * Author:            Smart Lead CRM
  * Author URI:        https://example.com
  * License:           GPL-2.0-or-later
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Plugin constants.
  */
-define( 'SMART_LEAD_CRM_VERSION', '1.0.0' );
-define( 'SMART_LEAD_CRM_DB_VERSION', '1.1.0' );
+define( 'SMART_LEAD_CRM_VERSION', '1.1.0' );
+define( 'SMART_LEAD_CRM_DB_VERSION', '1.2.0' );
 define( 'SMART_LEAD_CRM_PLUGIN_FILE', __FILE__ );
 define( 'SMART_LEAD_CRM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SMART_LEAD_CRM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -107,6 +107,13 @@ final class Smart_Lead_CRM {
 	public $export = null;
 
 	/**
+	 * Attribution instance.
+	 *
+	 * @var Smart_Lead_CRM_Attribution|null
+	 */
+	public $attribution = null;
+
+	/**
 	 * Get the single instance.
 	 *
 	 * @return Smart_Lead_CRM
@@ -141,6 +148,7 @@ final class Smart_Lead_CRM {
 		require_once SMART_LEAD_CRM_PLUGIN_DIR . 'includes/class-helper.php';
 		require_once SMART_LEAD_CRM_PLUGIN_DIR . 'includes/class-ajax.php';
 		require_once SMART_LEAD_CRM_PLUGIN_DIR . 'includes/class-export.php';
+		require_once SMART_LEAD_CRM_PLUGIN_DIR . 'includes/class-attribution.php';
 		require_once SMART_LEAD_CRM_PLUGIN_DIR . 'includes/functions.php';
 	}
 
@@ -157,6 +165,7 @@ final class Smart_Lead_CRM {
 		$this->tracker  = new Smart_Lead_CRM_Tracker();
 		$this->ajax     = new Smart_Lead_CRM_Ajax();
 		$this->export   = new Smart_Lead_CRM_Export();
+		$this->attribution = new Smart_Lead_CRM_Attribution();
 
 		// Activation / deactivation hooks.
 		register_activation_hook( SMART_LEAD_CRM_PLUGIN_FILE, array( $this->installer, 'activate' ) );
