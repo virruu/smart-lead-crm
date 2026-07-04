@@ -410,6 +410,11 @@ class Smart_Lead_CRM_DB {
 			'top_landing_pages' => array(),
 			'by_source'        => array(),
 			'by_status'        => array(),
+			'campaign_roi'     => array(),
+			'keyword_roi'      => array(),
+			'source_revenue'   => array(),
+			'google_ads_conversions' => 0,
+			'google_ads_revenue'     => 0,
 		);
 
 		$start = $start_date . ' 00:00:00';
@@ -514,6 +519,77 @@ class Smart_Lead_CRM_DB {
 			)
 		);
 
+		// Campaign ROI — leads, bookings, and revenue per campaign.
+		$report['campaign_roi'] = $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				"SELECT l.campaign, COUNT(DISTINCT l.id) as leads,
+					COUNT(DISTINCT CASE WHEN b.status = 'booked' THEN b.id END) as bookings,
+					COALESCE(SUM(CASE WHEN b.status = 'booked' THEN b.fare ELSE 0 END), 0) as revenue
+				FROM {$leads_table} l
+				LEFT JOIN {$bookings_table} b ON b.lead_id = l.id
+				WHERE l.created_at BETWEEN %s AND %s AND l.campaign != ''
+				GROUP BY l.campaign ORDER BY revenue DESC LIMIT 15",
+				$start,
+				$end
+			)
+		);
+
+		// Keyword ROI — leads, bookings, and revenue per keyword (utm_term).
+		$report['keyword_roi'] = $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				"SELECT l.keyword, COUNT(DISTINCT l.id) as leads,
+					COUNT(DISTINCT CASE WHEN b.status = 'booked' THEN b.id END) as bookings,
+					COALESCE(SUM(CASE WHEN b.status = 'booked' THEN b.fare ELSE 0 END), 0) as revenue
+				FROM {$leads_table} l
+				LEFT JOIN {$bookings_table} b ON b.lead_id = l.id
+				WHERE l.created_at BETWEEN %s AND %s AND l.keyword != ''
+				GROUP BY l.keyword ORDER BY revenue DESC LIMIT 15",
+				$start,
+				$end
+			)
+		);
+
+		// Source revenue — leads, bookings, and revenue per source.
+		$report['source_revenue'] = $this->wpdb->get_results(
+			$this->wpdb->prepare(
+				"SELECT l.lead_source, COUNT(DISTINCT l.id) as leads,
+					COUNT(DISTINCT CASE WHEN b.status = 'booked' THEN b.id END) as bookings,
+					COALESCE(SUM(CASE WHEN b.status = 'booked' THEN b.fare ELSE 0 END), 0) as revenue
+				FROM {$leads_table} l
+				LEFT JOIN {$bookings_table} b ON b.lead_id = l.id
+				WHERE l.created_at BETWEEN %s AND %s AND l.lead_source != ''
+				GROUP BY l.lead_source ORDER BY revenue DESC",
+				$start,
+				$end
+			)
+		);
+
+		// Google Ads conversions — booked leads with a gclid/gbraid/wbraid.
+		$report['google_ads_conversions'] = (int) $this->wpdb->get_var(
+			$this->wpdb->prepare(
+				"SELECT COUNT(DISTINCT l.id)
+				FROM {$leads_table} l
+				INNER JOIN {$bookings_table} b ON b.lead_id = l.id AND b.status = 'booked'
+				WHERE l.created_at BETWEEN %s AND %s
+				AND (l.gclid != '' OR l.gbraid != '' OR l.wbraid != '')",
+				$start,
+				$end
+			)
+		);
+
+		// Google Ads revenue.
+		$report['google_ads_revenue'] = (float) $this->wpdb->get_var(
+			$this->wpdb->prepare(
+				"SELECT COALESCE(SUM(b.fare), 0)
+				FROM {$leads_table} l
+				INNER JOIN {$bookings_table} b ON b.lead_id = l.id AND b.status = 'booked'
+				WHERE l.created_at BETWEEN %s AND %s
+				AND (l.gclid != '' OR l.gbraid != '' OR l.wbraid != '')",
+				$start,
+				$end
+			)
+		);
+
 		return $report;
 	}
 
@@ -595,9 +671,18 @@ class Smart_Lead_CRM_DB {
 			'email'         => '%s',
 			'status'        => '%s',
 			'lead_source'   => '%s',
+			'medium'        => '%s',
 			'campaign'      => '%s',
 			'ad_group'      => '%s',
 			'keyword'       => '%s',
+			'gclid'         => '%s',
+			'gbraid'        => '%s',
+			'wbraid'        => '%s',
+			'utm_source'   => '%s',
+			'utm_medium'   => '%s',
+			'utm_campaign' => '%s',
+			'utm_term'     => '%s',
+			'utm_content'  => '%s',
 			'landing_page'  => '%s',
 			'booking_route' => '%s',
 			'booking_date'  => '%s',
