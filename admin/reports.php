@@ -78,6 +78,23 @@ $report = $db->get_report_data( $start_date, $end_date );
 		</div>
 	</div>
 
+	<div class="slcrm-dashboard-grid">
+		<div class="slcrm-stat-card slcrm-stat-google-ads">
+			<div class="slcrm-stat-icon"><span class="dashicons dashicons-google"></span></div>
+			<div class="slcrm-stat-body">
+				<div class="slcrm-stat-value"><?php echo esc_html( number_format_i18n( $report['google_ads_conversions'] ) ); ?></div>
+				<div class="slcrm-stat-label"><?php esc_html_e( 'Google Ads Conversions', 'smart-lead-crm' ); ?></div>
+			</div>
+		</div>
+		<div class="slcrm-stat-card slcrm-stat-google-ads-rev">
+			<div class="slcrm-stat-icon"><span class="dashicons dashicons-money-alt"></span></div>
+			<div class="slcrm-stat-body">
+				<div class="slcrm-stat-value"><?php echo esc_html( $helper->format_currency( $report['google_ads_revenue'] ) ); ?></div>
+				<div class="slcrm-stat-label"><?php esc_html_e( 'Google Ads Revenue', 'smart-lead-crm' ); ?></div>
+			</div>
+		</div>
+	</div>
+
 	<div class="slcrm-reports-grid">
 		<div class="slcrm-card">
 			<h2><?php esc_html_e( 'Top Routes', 'smart-lead-crm' ); ?></h2>
@@ -94,17 +111,32 @@ $report = $db->get_report_data( $start_date, $end_date );
 		</div>
 
 		<div class="slcrm-card">
-			<h2><?php esc_html_e( 'Top Campaigns', 'smart-lead-crm' ); ?></h2>
-			<?php if ( $report['top_campaigns'] ) : ?>
+			<h2><?php esc_html_e( 'Campaign ROI', 'smart-lead-crm' ); ?></h2>
+			<?php if ( ! empty( $report['campaign_roi'] ) ) : ?>
 			<table class="slcrm-table">
-				<thead><tr><th><?php esc_html_e( 'Campaign', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Leads', 'smart-lead-crm' ); ?></th></tr></thead>
+				<thead><tr><th><?php esc_html_e( 'Campaign', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Leads', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Bookings', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Revenue', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Conv %', 'smart-lead-crm' ); ?></th></tr></thead>
 				<tbody>
-				<?php foreach ( $report['top_campaigns'] as $row ) : ?>
-					<tr><td><?php echo esc_html( $row->campaign ); ?></td><td><?php echo esc_html( $row->count ); ?></td></tr>
+				<?php foreach ( $report['campaign_roi'] as $row ) : ?>
+					<?php $conv = $row->leads > 0 ? round( ( $row->bookings / $row->leads ) * 100, 1 ) : 0; ?>
+					<tr><td><?php echo esc_html( $row->campaign ); ?></td><td><?php echo esc_html( $row->leads ); ?></td><td><?php echo esc_html( $row->bookings ); ?></td><td><?php echo esc_html( $helper->format_currency( $row->revenue ) ); ?></td><td><?php echo esc_html( $conv ); ?>%</td></tr>
 				<?php endforeach; ?>
 				</tbody>
 			</table>
-			<?php else : ?><p><?php esc_html_e( 'No data.', 'smart-lead-crm' ); ?></p><?php endif; ?>
+			<?php else : ?><p><?php esc_html_e( 'No campaign data. Make sure your Google Ads final URLs include utm_campaign or gclid parameters.', 'smart-lead-crm' ); ?></p><?php endif; ?>
+		</div>
+
+		<div class="slcrm-card">
+			<h2><?php esc_html_e( 'Keyword ROI', 'smart-lead-crm' ); ?></h2>
+			<?php if ( ! empty( $report['keyword_roi'] ) ) : ?>
+			<table class="slcrm-table">
+				<thead><tr><th><?php esc_html_e( 'Keyword', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Leads', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Bookings', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Revenue', 'smart-lead-crm' ); ?></th></tr></thead>
+				<tbody>
+				<?php foreach ( $report['keyword_roi'] as $row ) : ?>
+					<tr><td><?php echo esc_html( $row->keyword ); ?></td><td><?php echo esc_html( $row->leads ); ?></td><td><?php echo esc_html( $row->bookings ); ?></td><td><?php echo esc_html( $helper->format_currency( $row->revenue ) ); ?></td></tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<?php else : ?><p><?php esc_html_e( 'No keyword data. Add utm_term to your ad URLs to track keyword ROI.', 'smart-lead-crm' ); ?></p><?php endif; ?>
 		</div>
 
 		<div class="slcrm-card">
@@ -122,17 +154,17 @@ $report = $db->get_report_data( $start_date, $end_date );
 		</div>
 
 		<div class="slcrm-card">
-			<h2><?php esc_html_e( 'Leads by Source', 'smart-lead-crm' ); ?></h2>
-			<?php if ( $report['by_source'] ) : ?>
+			<h2><?php esc_html_e( 'Source Performance (Revenue)', 'smart-lead-crm' ); ?></h2>
+			<?php if ( ! empty( $report['source_revenue'] ) ) : ?>
 			<table class="slcrm-table">
-				<thead><tr><th><?php esc_html_e( 'Source', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Leads', 'smart-lead-crm' ); ?></th></tr></thead>
+				<thead><tr><th><?php esc_html_e( 'Source', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Leads', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Bookings', 'smart-lead-crm' ); ?></th><th><?php esc_html_e( 'Revenue', 'smart-lead-crm' ); ?></th></tr></thead>
 				<tbody>
-				<?php foreach ( $report['by_source'] as $row ) : ?>
-					<tr><td><?php echo esc_html( $helper->get_source_label( $row->lead_source ) ); ?></td><td><?php echo esc_html( $row->count ); ?></td></tr>
+				<?php foreach ( $report['source_revenue'] as $row ) : ?>
+					<tr><td><?php echo esc_html( $helper->get_source_label( $row->lead_source ) ); ?></td><td><?php echo esc_html( $row->leads ); ?></td><td><?php echo esc_html( $row->bookings ); ?></td><td><?php echo esc_html( $helper->format_currency( $row->revenue ) ); ?></td></tr>
 				<?php endforeach; ?>
 				</tbody>
 			</table>
-			<?php else : ?><p><?php esc_html_e( 'No data.', 'smart-lead-crm' ); ?></p><?php endif; ?>
+			<?php else : ?><p><?php esc_html_e( 'No source data yet.', 'smart-lead-crm' ); ?></p><?php endif; ?>
 		</div>
 
 		<div class="slcrm-card">
