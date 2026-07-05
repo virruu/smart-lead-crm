@@ -29,14 +29,20 @@ class Smart_Lead_CRM_Settings {
 	 * @var array
 	 */
 	private $defaults = array(
-		'business_name'             => '',
-		'google_ads_conversion_id'  => '',
-		'google_ads_label'          => '',
-		'ga4_measurement_id'        => '',
-		'cookie_duration'           => 90,
-		'capture_gclid'             => 'yes',
-		'capture_utm'               => 'yes',
-		'enable_debug'              => 'no',
+		'business_name'                  => '',
+		'google_ads_conversion_id'       => '',
+		'google_ads_label'               => '',
+		'ga4_measurement_id'             => '',
+		'cookie_duration'                => 90,
+		'capture_gclid'                  => 'yes',
+		'capture_utm'                    => 'yes',
+		'enable_debug'                   => 'no',
+		'whatsapp_access_token'          => '',
+		'whatsapp_phone_number_id'       => '',
+		'whatsapp_verify_token'          => '',
+		'whatsapp_business_number'       => '',
+		'whatsapp_api_version'           => 'v18.0',
+		'whatsapp_default_country_code'  => '91',
 	);
 
 	/**
@@ -159,6 +165,13 @@ class Smart_Lead_CRM_Settings {
 			)
 		);
 
+		register_setting( 'smart_lead_crm_settings_group', 'smart_lead_crm_whatsapp_access_token', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ) );
+		register_setting( 'smart_lead_crm_settings_group', 'smart_lead_crm_whatsapp_phone_number_id', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ) );
+		register_setting( 'smart_lead_crm_settings_group', 'smart_lead_crm_whatsapp_verify_token', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ) );
+		register_setting( 'smart_lead_crm_settings_group', 'smart_lead_crm_whatsapp_business_number', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ) );
+		register_setting( 'smart_lead_crm_settings_group', 'smart_lead_crm_whatsapp_api_version', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'v18.0' ) );
+		register_setting( 'smart_lead_crm_settings_group', 'smart_lead_crm_whatsapp_default_country_code', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '91' ) );
+
 		// Business settings section.
 		add_settings_section(
 			'smart_lead_crm_business_section',
@@ -175,6 +188,14 @@ class Smart_Lead_CRM_Settings {
 			'smart-lead-crm-settings'
 		);
 
+		// WhatsApp settings section.
+		add_settings_section(
+			'smart_lead_crm_whatsapp_section',
+			__( 'WhatsApp Business API', 'smart-lead-crm' ),
+			array( $this, 'render_whatsapp_section' ),
+			'smart-lead-crm-settings'
+		);
+
 		// Business fields.
 		add_settings_field( 'business_name', __( 'Business Name', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_business_section', array( 'key' => 'business_name', 'label_for' => 'smart_lead_crm_business_name' ) );
 		add_settings_field( 'google_ads_conversion_id', __( 'Google Ads Conversion ID', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_business_section', array( 'key' => 'google_ads_conversion_id', 'label_for' => 'smart_lead_crm_google_ads_conversion_id', 'placeholder' => 'AW-XXXXXXXXX' ) );
@@ -186,6 +207,14 @@ class Smart_Lead_CRM_Settings {
 		add_settings_field( 'capture_gclid', __( 'Capture GCLID', 'smart-lead-crm' ), array( $this, 'render_checkbox_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_tracking_section', array( 'key' => 'capture_gclid' ) );
 		add_settings_field( 'capture_utm', __( 'Capture UTM Parameters', 'smart-lead-crm' ), array( $this, 'render_checkbox_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_tracking_section', array( 'key' => 'capture_utm' ) );
 		add_settings_field( 'enable_debug', __( 'Enable Debug Mode', 'smart-lead-crm' ), array( $this, 'render_checkbox_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_tracking_section', array( 'key' => 'enable_debug' ) );
+
+		// WhatsApp fields.
+		add_settings_field( 'whatsapp_access_token', __( 'Access Token', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_whatsapp_section', array( 'key' => 'whatsapp_access_token', 'label_for' => 'smart_lead_crm_whatsapp_access_token', 'placeholder' => 'EAAG...' ) );
+		add_settings_field( 'whatsapp_phone_number_id', __( 'Phone Number ID', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_whatsapp_section', array( 'key' => 'whatsapp_phone_number_id', 'label_for' => 'smart_lead_crm_whatsapp_phone_number_id', 'placeholder' => '123456789012345' ) );
+		add_settings_field( 'whatsapp_verify_token', __( 'Webhook Verify Token', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_whatsapp_section', array( 'key' => 'whatsapp_verify_token', 'label_for' => 'smart_lead_crm_whatsapp_verify_token', 'placeholder' => 'my_verify_token' ) );
+		add_settings_field( 'whatsapp_business_number', __( 'Business WhatsApp Number', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_whatsapp_section', array( 'key' => 'whatsapp_business_number', 'label_for' => 'smart_lead_crm_whatsapp_business_number', 'placeholder' => '919876543210' ) );
+		add_settings_field( 'whatsapp_api_version', __( 'API Version', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_whatsapp_section', array( 'key' => 'whatsapp_api_version', 'label_for' => 'smart_lead_crm_whatsapp_api_version', 'placeholder' => 'v18.0' ) );
+		add_settings_field( 'whatsapp_default_country_code', __( 'Default Country Code', 'smart-lead-crm' ), array( $this, 'render_text_field' ), 'smart-lead-crm-settings', 'smart_lead_crm_whatsapp_section', array( 'key' => 'whatsapp_default_country_code', 'label_for' => 'smart_lead_crm_whatsapp_default_country_code', 'placeholder' => '91' ) );
 	}
 
 	/**
@@ -224,6 +253,13 @@ class Smart_Lead_CRM_Settings {
 	 */
 	public function render_tracking_section() {
 		echo '<p>' . esc_html__( 'Configure how the plugin captures and stores tracking data.', 'smart-lead-crm' ) . '</p>';
+	}
+
+	/**
+	 * Render WhatsApp section description.
+	 */
+	public function render_whatsapp_section() {
+		echo '<p>' . esc_html__( 'Connect your WhatsApp Business API to automatically match inbound messages to leads. Webhook URL:', 'smart-lead-crm' ) . ' <code>' . esc_html( home_url( '/slcrm-whatsapp-webhook' ) ) . '</code></p>';
 	}
 
 	/**
