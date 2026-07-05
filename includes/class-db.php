@@ -146,6 +146,47 @@ class Smart_Lead_CRM_DB {
 	}
 
 	/**
+	 * Find a lead by exact phone number match.
+	 *
+	 * Checks both the phone column and customer_mobile column.
+	 *
+	 * @param string $phone Normalized phone number.
+	 * @return object|null
+	 */
+	public function find_lead_by_phone( $phone ) {
+		$query = $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE phone = %s OR customer_mobile = %s ORDER BY created_at DESC LIMIT 1",
+			$phone,
+			$phone
+		);
+		return $this->wpdb->get_row( $query );
+	}
+
+	/**
+	 * Find a lead by partial phone number match (last 10 digits).
+	 *
+	 * Handles cases where one system stored the number with country code
+	 * and another without. Matches on the last 10 digits to find the same
+	 * customer regardless of prefix.
+	 *
+	 * @param string $phone Normalized phone number.
+	 * @return object|null
+	 */
+	public function find_lead_by_phone_partial( $phone ) {
+		if ( strlen( $phone ) < 10 ) {
+			return null;
+		}
+		$tail = substr( $phone, -10 );
+		$like  = '%' . $this->wpdb->esc_like( $tail );
+		$query = $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE phone LIKE %s OR customer_mobile LIKE %s ORDER BY created_at DESC LIMIT 1",
+			$like,
+			$like
+		);
+		return $this->wpdb->get_row( $query );
+	}
+
+	/**
 	 * Get leads with optional filters.
 	 *
 	 * @param array $args Query arguments.
