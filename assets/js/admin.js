@@ -180,6 +180,56 @@
 			});
 		});
 
+		// Send conversation reply (channel-agnostic).
+		$('#slcrm-send-reply').on('click', function (e) {
+			e.preventDefault();
+			var leadId = $(this).data('lead-id');
+			var convId = $(this).data('conversation-id');
+			var body = $('#slcrm-conv-reply').val();
+			if (!body) return;
+			var $btn = $(this);
+			$btn.prop('disabled', true);
+
+			$.post(slcrmAdmin.ajaxUrl, {
+				action: 'slcrm_send_reply',
+				nonce: slcrmAdmin.nonce,
+				lead_id: leadId,
+				conversation_id: convId,
+				body: body
+			}, function (response) {
+				$btn.prop('disabled', false);
+				if (response.success) {
+					$('#slcrm-conv-thread').append(
+						'<div class="slcrm-conv-msg slcrm-conv-outbound">' +
+						'<div class="slcrm-conv-msg-type">Text</div>' +
+						'<div class="slcrm-conv-msg-body">' + escapeHtml(response.data.body) + '</div>' +
+						'<div class="slcrm-conv-msg-meta">' + response.data.timestamp + '</div>' +
+						'</div>'
+					);
+					$('#slcrm-conv-reply').val('');
+					$('#slcrm-conv-thread').scrollTop($('#slcrm-conv-thread')[0].scrollHeight);
+				} else {
+					alert(response.data.message);
+				}
+			});
+		});
+
+		// Assign conversation to a WP user.
+		$('#slcrm-conv-assign').on('change', function () {
+			var convId = $(this).data('conversation-id');
+			var userId = $(this).val();
+			$.post(slcrmAdmin.ajaxUrl, {
+				action: 'slcrm_assign_conversation',
+				nonce: slcrmAdmin.nonce,
+				conversation_id: convId,
+				user_id: userId
+			}, function (response) {
+				if (response.success) {
+					// Optionally show a brief confirmation.
+				}
+			});
+		});
+
 		// Store original button text.
 		$('.slcrm-submit-btn').each(function () {
 			$(this).data('original-text', $(this).text());
