@@ -106,12 +106,27 @@ class Smart_Lead_CRM_Helper {
 	 * @return string
 	 */
 	public function format_date( $date, $format = 'M j, Y' ) {
-		if ( empty( $date ) || '0000-00-00' === $date || '0000-00-00 00:00:00' === $date ) {
-			return '—';
-		}
-		$timestamp = strtotime( $date );
-		return $timestamp ? date( $format, $timestamp ) : '—';
-	}
+
+    if (
+        empty( $date ) ||
+        $date === '0000-00-00' ||
+        $date === '0000-00-00 00:00:00'
+    ) {
+        return '—';
+    }
+
+    $timestamp = strtotime( $date );
+
+    if ( ! $timestamp ) {
+        return '—';
+    }
+
+    return wp_date(
+        $format,
+        $timestamp,
+        wp_timezone()
+    );
+}
 
 	/**
 	 * Get client IP address.
