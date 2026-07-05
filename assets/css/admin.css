@@ -592,3 +592,242 @@
 		min-width: 100%;
 	}
 }
+
+/* Unified Timeline */
+.slcrm-timeline-card {
+	border-left: 4px solid #2271b1;
+}
+
+.slcrm-timeline {
+	position: relative;
+	padding-left: 24px;
+}
+
+.slcrm-timeline::before {
+	content: '';
+	position: absolute;
+	left: 11px;
+	top: 0;
+	bottom: 0;
+	width: 2px;
+	background: #ddd;
+}
+
+.slcrm-timeline-item {
+	position: relative;
+	padding: 8px 0 8px 24px;
+}
+
+.slcrm-timeline-dot {
+	position: absolute;
+	left: -13px;
+	top: 8px;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: #fff;
+	border: 2px solid #ddd;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.slcrm-timeline-dot .dashicons {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+}
+
+.slcrm-timeline-visit .slcrm-timeline-dot { border-color: #2271b1; color: #2271b1; }
+.slcrm-timeline-message .slcrm-timeline-dot { border-color: #25D366; color: #25D366; }
+.slcrm-timeline-booking .slcrm-timeline-dot { border-color: #00a32a; color: #00a32a; }
+.slcrm-timeline-note .slcrm-timeline-dot { border-color: #996800; color: #996800; }
+
+.slcrm-timeline-time {
+	font-size: 11px;
+	color: #666;
+}
+
+.slcrm-timeline-label {
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.slcrm-timeline-detail {
+	font-size: 13px;
+	color: #444;
+	margin-top: 2px;
+}
+
+.slcrm-timeline-inbound {
+	background: #f0f7ff;
+	padding: 4px 8px;
+	border-radius: 4px;
+	border-left: 3px solid #25D366;
+}
+
+.slcrm-timeline-outbound {
+	background: #f0f7ff;
+	padding: 4px 8px;
+	border-radius: 4px;
+	border-left: 3px solid #2271b1;
+}
+
+/* Conversation Thread */
+.slcrm-conv-card {
+	border-left: 4px solid #25D366;
+}
+
+.slcrm-platform-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	margin-left: 8px;
+}
+
+.slcrm-platform-whatsapp { background: #25D366; color: #fff; }
+.slcrm-platform-messenger { background: #0084ff; color: #fff; }
+.slcrm-platform-instagram { background: #e1306c; color: #fff; }
+.slcrm-platform-telegram { background: #0088cc; color: #fff; }
+.slcrm-platform-sms { background: #666; color: #fff; }
+
+.slcrm-conv-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	padding: 8px 0;
+	font-size: 12px;
+	color: #666;
+}
+
+.slcrm-conv-assign {
+	padding: 8px 0;
+	border-top: 1px solid #eee;
+	border-bottom: 1px solid #eee;
+	margin-bottom: 12px;
+}
+
+.slcrm-conv-assign label {
+	font-weight: 600;
+	margin-right: 8px;
+}
+
+.slcrm-conv-thread {
+	max-height: 400px;
+	overflow-y: auto;
+	padding: 12px;
+	background: #f0f0f1;
+	border-radius: 6px;
+	margin-bottom: 12px;
+}
+
+.slcrm-conv-msg {
+	max-width: 75%;
+	margin-bottom: 10px;
+	padding: 8px 12px;
+	border-radius: 8px;
+}
+
+.slcrm-conv-msg-type {
+	font-size: 10px;
+	text-transform: uppercase;
+	color: #999;
+	margin-bottom: 2px;
+}
+
+.slcrm-conv-msg-body {
+	font-size: 13px;
+	line-height: 1.5;
+	word-wrap: break-word;
+}
+
+.slcrm-conv-msg-meta {
+	font-size: 11px;
+	color: #666;
+	margin-top: 4px;
+}
+
+.slcrm-conv-inbound {
+	background: #fff;
+	border: 1px solid #e0e0e0;
+	margin-right: auto;
+}
+
+.slcrm-conv-outbound {
+	background: #dcf8c6;
+	border: 1px solid #c5e8a8;
+	margin-left: auto;
+}
+
+.slcrm-conv-reply-form {
+	display: flex;
+	gap: 8px;
+	align-items: flex-end;
+}
+
+.slcrm-conv-reply-form textarea {
+	flex: 1;
+}
+
+/* Conversion Funnel */
+.slcrm-funnel-card {
+	margin-bottom: 20px;
+}
+
+.slcrm-funnel {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 16px 0;
+}
+
+.slcrm-funnel-stage {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 20px;
+	background: #f8f9fa;
+	border-radius: 8px;
+	min-width: 280px;
+}
+
+.slcrm-funnel-icon {
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #2271b1;
+	color: #fff;
+}
+
+.slcrm-funnel-icon .dashicons {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+}
+
+.slcrm-funnel-value {
+	font-size: 20px;
+	font-weight: 700;
+}
+
+.slcrm-funnel-label {
+	font-size: 12px;
+	color: #666;
+}
+
+.slcrm-funnel-arrow {
+	font-size: 20px;
+	color: #ccc;
+	padding: 4px 0;
+}
+
+.slcrm-stat-msg-inbound .slcrm-stat-icon { background: #25D366; }
+.slcrm-stat-msg-outbound .slcrm-stat-icon { background: #128C7E; }
+.slcrm-stat-msg-senders .slcrm-stat-icon { background: #075E54; }
+.slcrm-stat-msg-response .slcrm-stat-icon { background: #34B7F1; }
