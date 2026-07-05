@@ -33,6 +33,8 @@ class Smart_Lead_CRM_Installer {
 			'tracking' => $wpdb->prefix . 'slcrm_tracking',
 			'bookings' => $wpdb->prefix . 'slcrm_bookings',
 			'notes'    => $wpdb->prefix . 'slcrm_notes',
+			'conversations' => $wpdb->prefix . 'slcrm_conversations',
+			'messages'       => $wpdb->prefix . 'slcrm_messages',
 		);
 	}
 
@@ -77,7 +79,8 @@ class Smart_Lead_CRM_Installer {
 		$leads_table     = $this->tables['leads'];
 		$tracking_table  = $this->tables['tracking'];
 		$bookings_table  = $this->tables['bookings'];
-		$notes_table     = $this->tables['notes'];
+		$notes_table      = $this->tables['notes'];
+		$wa_messages_table = $this->tables['wa_messages'];
 
 		// Leads table — stores full attribution data permanently for reporting.
 		$sql_leads = "CREATE TABLE {$leads_table} (
@@ -177,10 +180,53 @@ class Smart_Lead_CRM_Installer {
 			KEY created_at (created_at)
 		) {$charset_collate};";
 
+		// Conversations table — one lead can have multiple conversations across channels.
+		$conversations_table = $this->tables['conversations'];
+		$sql_conversations = "CREATE TABLE {$conversations_table} (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			lead_id BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			platform VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+			conversation_id VARCHAR(255) NOT NULL DEFAULT '',
+			customer_name VARCHAR(255) NOT NULL DEFAULT '',
+			customer_phone VARCHAR(50) NOT NULL DEFAULT '',
+			started_at DATETIME NOT NULL,
+			last_message_at DATETIME NOT NULL,
+			status VARCHAR(50) NOT NULL DEFAULT 'active',
+			assigned_user_id BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			PRIMARY KEY (id),
+			KEY lead_id (lead_id),
+			KEY platform (platform),
+			KEY conversation_id (conversation_id(50)),
+			KEY customer_phone (customer_phone(20)),
+			KEY assigned_user_id (assigned_user_id),
+			KEY started_at (started_at)
+		) {$charset_collate};";
+
+		// Messages table — individual messages within a conversation.
+		$messages_table = $this->tables['messages'];
+		$sql_messages = "CREATE TABLE {$messages_table} (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			conversation_id BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			direction VARCHAR(20) NOT NULL DEFAULT 'inbound',
+			message_id VARCHAR(255) NOT NULL DEFAULT '',
+			text TEXT NOT NULL,
+			message_type VARCHAR(50) NOT NULL DEFAULT 'text',
+			media_url TEXT NOT NULL,
+			status VARCHAR(50) NOT NULL DEFAULT 'received',
+			created_at DATETIME NOT NULL,
+			PRIMARY KEY (id),
+			KEY conversation_id (conversation_id),
+			KEY message_id (message_id(80)),
+			KEY direction (direction),
+			KEY created_at (created_at)
+		) {$charset_collate};";
+
 		dbDelta( $sql_leads );
 		dbDelta( $sql_tracking );
 		dbDelta( $sql_bookings );
 		dbDelta( $sql_notes );
+		dbDelta( $sql_conversations );
+		dbDelta( $sql_messages );
 
 		// Migration: add visitor_id column to existing tables if upgrading.
 		$this->maybe_add_visitor_id_column( $leads_table, 'leads' );
@@ -261,6 +307,12 @@ class Smart_Lead_CRM_Installer {
 			'capture_gclid'             => 'yes',
 			'capture_utm'               => 'yes',
 			'enable_debug'              => 'no',
+			'whatsapp_access_token'     => '',
+			'whatsapp_phone_number_id'  => '',
+			'whatsapp_verify_token'      => '',
+			'whatsapp_business_number'  => '',
+			'whatsapp_api_version'      => 'v18.0',
+			'whatsapp_default_country_code' => '91',
 		);
 
 		foreach ( $defaults as $key => $value ) {
