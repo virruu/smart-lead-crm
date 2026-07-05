@@ -17,6 +17,13 @@ $end_date   = isset( $_GET['end_date'] ) ? sanitize_text_field( wp_unslash( $_GE
 $start_date = isset( $_GET['start_date'] ) ? sanitize_text_field( wp_unslash( $_GET['start_date'] ) ) : date( 'Y-m-d', strtotime( '-30 days' ) );
 
 $report = $db->get_report_data( $start_date, $end_date );
+
+// Conversation/messaging stats.
+$msg_stats = array( 'total_inbound' => 0, 'total_outbound' => 0, 'unique_senders' => 0, 'conversations_started' => 0 );
+if ( smart_lead_crm()->messaging ) {
+	$msg_stats = smart_lead_crm()->messaging->conversation->get_stats( $start_date . ' 00:00:00', $end_date . ' 23:59:59' );
+}
+$response_rate = $msg_stats['total_inbound'] > 0 ? round( ( $msg_stats['total_outbound'] / $msg_stats['total_inbound'] ) * 100, 1 ) : 0;
 ?>
 <div class="wrap slcrm-wrap">
 	<h1 class="slcrm-title">
@@ -93,6 +100,74 @@ $report = $db->get_report_data( $start_date, $end_date );
 				<div class="slcrm-stat-label"><?php esc_html_e( 'Google Ads Revenue', 'smart-lead-crm' ); ?></div>
 			</div>
 		</div>
+	</div>
+
+	<div class="slcrm-card slcrm-funnel-card">
+		<h2><span class="dashicons dashicons-filter"></span> <?php esc_html_e( 'Conversion Funnel', 'smart-lead-crm' ); ?></h2>
+		<div class="slcrm-funnel">
+			<div class="slcrm-funnel-stage">
+				<div class="slcrm-funnel-icon"><span class="dashicons dashicons-google"></span></div>
+				<div class="slcrm-funnel-body">
+					<div class="slcrm-funnel-value"><?php echo esc_html( number_format_i18n( $report['total_leads'] ) ); ?></div>
+					<div class="slcrm-funnel-label"><?php esc_html_e( 'Google Ads Clicks → Leads', 'smart-lead-crm' ); ?></div>
+				</div>
+			</div>
+			<div class="slcrm-funnel-arrow">&darr;</div>
+			<div class="slcrm-funnel-stage">
+				<div class="slcrm-funnel-icon"><span class="dashicons dashicons-format-chat"></span></div>
+				<div class="slcrm-funnel-body">
+					<div class="slcrm-funnel-value"><?php echo esc_html( number_format_i18n( $msg_stats['conversations_started'] ) ); ?></div>
+					<div class="slcrm-funnel-label"><?php esc_html_e( 'Conversations Started', 'smart-lead-crm' ); ?></div>
+				</div>
+			</div>
+			<div class="slcrm-funnel-arrow">&darr;</div>
+			<div class="slcrm-funnel-stage">
+				<div class="slcrm-funnel-icon"><span class="dashicons dashicons-calendar-check"></span></div>
+				<div class="slcrm-funnel-body">
+					<div class="slcrm-funnel-value"><?php echo esc_html( number_format_i18n( $report['total_bookings'] ) ); ?></div>
+					<div class="slcrm-funnel-label"><?php esc_html_e( 'Bookings Created', 'smart-lead-crm' ); ?></div>
+				</div>
+			</div>
+			<div class="slcrm-funnel-arrow">&darr;</div>
+			<div class="slcrm-funnel-stage">
+				<div class="slcrm-funnel-icon"><span class="dashicons dashicons-money-alt"></span></div>
+				<div class="slcrm-funnel-body">
+					<div class="slcrm-funnel-value"><?php echo esc_html( $helper->format_currency( $report['revenue'] ) ); ?></div>
+					<div class="slcrm-funnel-label"><?php esc_html_e( 'Revenue', 'smart-lead-crm' ); ?></div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="slcrm-dashboard-grid">
+		<div class="slcrm-stat-card slcrm-stat-msg-inbound">
+			<div class="slcrm-stat-icon"><span class="dashicons dashicons-format-chat"></span></div>
+			<div class="slcrm-stat-body">
+				<div class="slcrm-stat-value"><?php echo esc_html( number_format_i18n( $msg_stats['total_inbound'] ) ); ?></div>
+				<div class="slcrm-stat-label"><?php esc_html_e( 'Messages Received', 'smart-lead-crm' ); ?></div>
+			</div>
+		</div>
+		<div class="slcrm-stat-card slcrm-stat-msg-outbound">
+				<div class="slcrm-stat-icon"><span class="dashicons dashicons-megaphone"></span></div>
+				<div class="slcrm-stat-body">
+					<div class="slcrm-stat-value"><?php echo esc_html( number_format_i18n( $msg_stats['total_outbound'] ) ); ?></div>
+					<div class="slcrm-stat-label"><?php esc_html_e( 'Replies Sent', 'smart-lead-crm' ); ?></div>
+				</div>
+			</div>
+			<div class="slcrm-stat-card slcrm-stat-msg-senders">
+				<div class="slcrm-stat-icon"><span class="dashicons dashicons-groups"></span></div>
+				<div class="slcrm-stat-body">
+					<div class="slcrm-stat-value"><?php echo esc_html( number_format_i18n( $msg_stats['unique_senders'] ) ); ?></div>
+					<div class="slcrm-stat-label"><?php esc_html_e( 'Unique Senders', 'smart-lead-crm' ); ?></div>
+				</div>
+			</div>
+			<div class="slcrm-stat-card slcrm-stat-msg-response">
+				<div class="slcrm-stat-icon"><span class="dashicons dashicons-chart-line"></span></div>
+				<div class="slcrm-stat-body">
+					<div class="slcrm-stat-value"><?php echo esc_html( $response_rate ); ?>%</div>
+					<div class="slcrm-stat-label"><?php esc_html_e( 'Response Rate', 'smart-lead-crm' ); ?></div>
+				</div>
+			</div>
 	</div>
 
 	<div class="slcrm-reports-grid">
