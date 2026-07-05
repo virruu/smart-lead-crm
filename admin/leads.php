@@ -21,13 +21,63 @@ $per_page = 20;
 
 // Detail view.
 if ( 'view' === $action && $lead_id ) {
-	$lead     = $db->get_lead( $lead_id );
-	$tracking = $db->get_tracking( $lead_id );
-	$bookings = $db->get_bookings( $lead_id );
-	$notes    = $db->get_notes( $lead_id );
-	$statuses = $helper->get_lead_statuses();
-	$sources  = $helper->get_lead_sources();
-	$types    = $helper->get_booking_types();
+	$lead          = $db->get_lead( $lead_id );
+	$tracking      = $db->get_tracking( $lead_id );
+	$bookings      = $db->get_bookings( $lead_id );
+	$notes         = $db->get_notes( $lead_id );
+	$statuses      = $helper->get_lead_statuses();
+	$sources       = $helper->get_lead_sources();
+	$types         = $helper->get_booking_types();
+	$conversations = array();
+	$all_messages  = array();
+	$timeline      = array();
+	if ( smart_lead_crm()->messaging ) {
+		$conversations = smart_lead_crm()->messaging->conversation->get_conversations_by_lead( $lead_id );
+		$all_messages  = smart_lead_crm()->messaging->conversation->get_messages_by_lead( $lead_id );
+	}
+
+	// Build unified timeline: tracking visits + messages + bookings + notes, sorted by time.
+	foreach ( $tracking as $visit ) {
+		$timeline[] = array(
+			'time'    => $visit->visit_time,
+			'type'    => 'visit',
+			'icon'    => 'external',
+			'label'   => __( 'Site Visit', 'smart-lead-crm' ),
+			'detail'  => $visit->utm_source ? sprintf( __( 'From %s', 'smart-lead-crm' ), $visit->utm_source ) : __( 'Direct visit', 'smart-lead-crm' ),
+		);
+	}
+	foreach ( $all_messages as $msg ) {
+		$timeline[] = array(
+			'time'    => $msg->created_at,
+			'type'    => 'message',
+			'icon'    => 'format-chat',
+			'label'   => 'inbound' === $msg->direction ? __( 'Customer', 'smart-lead-crm' ) : __( 'Staff', 'smart-lead-crm' ),
+			'detail'  => $msg->text,
+			'direction' => $msg->direction,
+		);
+	}
+	foreach ( $bookings as $booking ) {
+		$timeline[] = array(
+			'time'    => $booking->created_at,
+			'type'    => 'booking',
+			'icon'    => 'calendar-check',
+			'label'   => __( 'Booking Created', 'smart-lead-crm' ),
+			'detail'  => $booking->route . ' — ' . $helper->format_currency( $booking->fare ),
+		);
+	}
+	foreach ( $notes as $note ) {
+		$timeline[] = array(
+			'time'    => $note->created_at,
+			'type'    => 'note',
+			'icon'    => 'format-aside',
+			'label'   => __( 'Note', 'smart-lead-crm' ),
+			'detail'  => $note->note,
+		);
+	}
+	// Sort timeline by time ascending.
+	usort( $timeline, function( $a, $b ) {
+		return strtotime( $a['time'] ) - strtotime( $b['time'] );
+	} );
 	?>
 	<div class="wrap slcrm-wrap">
 		<h1 class="slcrm-title">
@@ -153,6 +203,71 @@ if ( 'view' === $action && $lead_id ) {
 						<button class="button" id="slcrm-add-note" data-lead-id="<?php echo esc_attr( $lead->id ); ?>"><?php esc_html_e( 'Add Note', 'smart-lead-crm' ); ?></button>
 					</div>
 				</div>
+
+				<div class="slcrm-card slcrm-timeline-card">
+					<h2><span class="dashicons dashicons-clock"></span> <?php esc_html_e( 'Lead Timeline', 'smart-lead-crm' ); ?></h2>
+					<div class="slcrm-timeline">
+						<?php if ( $timeline ) : foreach ( $timeline as $event ) : ?>
+							<div class="slcrm-timeline-item slcrm-timeline-<?php echo esc_attr( $event['type'] ); ?>">
+								<div class="slcrm-timeline-dot"><span class="dashicons dashicons-<?php echo esc_attr( $event['icon'] ); ?>"></span></div>
+								<div class="slcrm-timeline-content">
+									<div class="slcrm-timeline-time"><?php echo esc_html( $helper->format_date( $event['time'], 'M j, Y g:i a' ) ); ?></div>
+									<div class="slcrm-timeline-label"><?php echo esc_html( $event['label'] ); ?></div>
+									<?php if ( ! empty( $event['detail'] ) ) : ?>
+										<div class="slcrm-timeline-detail <?php echo isset( $event['direction'] ) ? 'slcrm-timeline-' . esc_attr( $event['direction'] ) : ''; ?>"><?php echo esc_html( $event['detail'] ); ?></div>
+									<?php endif; ?>
+								</div>
+							</div>
+						<?php endforeach; else : ?>
+							<p><?php esc_html_e( 'No activity yet.', 'smart-lead-crm' ); ?></p>
+					<?php endif; ?>
+					</div>
+				</div>
+
+				<?php if ( $conversations ) : ?>
+				<div class="slcrm-card slcrm-conv-card">
+					<h2><span class="dashicons dashicons-format-chat"></span> <?php esc_html_e( 'Conversation', 'smart-lead-crm' ); ?>
+						<?php if ( $conversations[0]->platform ) : ?>
+							<span class="slcrm-platform-badge slcrm-platform-<?php echo esc_attr( $conversations[0]->platform ); ?>"><?php echo esc_html( ucfirst( $conversations[0]->platform ) ); ?></span>
+						<?php endif; ?>
+					</h2>
+					<?php
+					$conv      = $conversations[0];
+					$conv_msgs = smart_lead_crm()->messaging->conversation->get_messages( $conv->id );
+					$assignees = get_users( array( 'role__in' => array( 'administrator', 'editor', 'author' ), 'number' => 50 ) );
+					?>
+					<div class="slcrm-conv-meta">
+						<span><strong><?php esc_html_e( 'Customer:', 'smart-lead-crm' ); ?></strong> <?php echo esc_html( $conv->customer_name ? $conv->customer_name : '—' ); ?></span>
+						<span><strong><?php esc_html_e( 'Phone:', 'smart-lead-crm' ); ?></strong> <?php echo esc_html( $conv->customer_phone ? $conv->customer_phone : '—' ); ?></span>
+						<span><strong><?php esc_html_e( 'Started:', 'smart-lead-crm' ); ?></strong> <?php echo esc_html( $helper->format_date( $conv->started_at, 'M j, Y g:i a' ) ); ?></span>
+						<span><strong><?php esc_html_e( 'Last Message:', 'smart-lead-crm' ); ?></strong> <?php echo esc_html( $helper->format_date( $conv->last_message_at, 'M j, Y g:i a' ) ); ?></span>
+					</div>
+					<div class="slcrm-conv-assign">
+						<label><?php esc_html_e( 'Assigned To:', 'smart-lead-crm' ); ?></label>
+						<select id="slcrm-conv-assign" data-conversation-id="<?php echo esc_attr( $conv->id ); ?>">
+							<option value="0"><?php esc_html_e( 'Unassigned', 'smart-lead-crm' ); ?></option>
+							<?php foreach ( $assignees as $user ) : ?>
+								<option value="<?php echo esc_attr( $user->ID ); ?>" <?php selected( $conv->assigned_user_id, $user->ID ); ?>><?php echo esc_html( $user->display_name ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+					<div class="slcrm-conv-thread" id="slcrm-conv-thread">
+						<?php if ( $conv_msgs ) : foreach ( $conv_msgs as $msg ) : ?>
+							<div class="slcrm-conv-msg slcrm-conv-<?php echo esc_attr( $msg->direction ); ?>">
+								<div class="slcrm-conv-msg-type"><?php echo esc_html( ucfirst( $msg->message_type ) ); ?></div>
+								<div class="slcrm-conv-msg-body"><?php echo esc_html( $msg->text ); ?></div>
+								<div class="slcrm-conv-msg-meta"><?php echo esc_html( $helper->format_date( $msg->created_at, 'M j, Y g:i a' ) ); ?></div>
+							</div>
+						<?php endforeach; else : ?>
+							<p><?php esc_html_e( 'No messages yet.', 'smart-lead-crm' ); ?></p>
+					<?php endif; ?>
+					</div>
+					<div class="slcrm-conv-reply-form">
+						<textarea id="slcrm-conv-reply" rows="2" placeholder="<?php esc_attr_e( 'Type a reply...', 'smart-lead-crm' ); ?>"></textarea>
+						<button class="button button-primary" id="slcrm-send-reply" data-lead-id="<?php echo esc_attr( $lead->id ); ?>" data-conversation-id="<?php echo esc_attr( $conv->id ); ?>"><?php esc_html_e( 'Send Reply', 'smart-lead-crm' ); ?></button>
+					</div>
+				</div>
+				<?php endif; ?>
 			</div>
 
 			<div class="slcrm-lead-sidebar">
