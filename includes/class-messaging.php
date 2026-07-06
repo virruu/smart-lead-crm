@@ -6,10 +6,12 @@
  * is designed so that Messenger, Instagram DM, Telegram, or SMS can be added
  * later without changing the database schema or the conversation UI.
  *
+ * Webhook URL: https://yoursite.com/wp-json/slcrm/v1/webhook
+ *
  * Flow:
- *   Webhook → Verify token → Parse payload → Normalize phone →
- *   Match lead (exact → E164 → last 10 digits) →
- *   Update or create → Store conversation + message → Fire action
+ *   REST endpoint → Verify token (GET) / Parse payload (POST) →
+ *   Normalize phone → Match lead (exact → E164 → last 10 digits) →
+ *   Upsert conversation + message → Fire action
  *
  * @package SmartLeadCRM
  */
@@ -38,10 +40,8 @@ class Smart_Lead_CRM_Messaging {
 	public function __construct() {
 		$this->conversation = new Smart_Lead_CRM_Conversation();
 
-		// Webhook verification (GET) and message receiver (POST).
-		add_action( 'init', array( $this, 'register_webhook_endpoint' ) );
-		add_filter( 'query_vars', array( $this, 'add_query_var' ) );
-		add_action( 'template_redirect', array( $this, 'handle_webhook' ) );
+		// Register the REST API webhook endpoint — no rewrite rules needed.
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 
 		// Admin AJAX for sending replies from the lead detail screen.
 		add_action( 'wp_ajax_slcrm_send_reply', array( $this, 'send_reply_ajax' ) );
@@ -50,79 +50,86 @@ class Smart_Lead_CRM_Messaging {
 		add_action( 'wp_ajax_slcrm_assign_conversation', array( $this, 'assign_conversation_ajax' ) );
 	}
 
-	// ── Webhook endpoint ───────────────────────────────────────────
+	// ── REST API endpoint ──────────────────────────────────────────
 
 	/**
-	 * Register a custom rewrite endpoint so the webhook URL is
-	 * /slcrm-webhook (clean, no query params).
-	 */
-	public function register_webhook_endpoint() {
-		add_rewrite_rule( '^slcrm-webhook/?$', 'index.php?slcrm_msg_webhook=1', 'top' );
-	}
-
-	/**
-	 * Add the webhook query var so WordPress recognizes it.
+	 * Register the REST route for the webhook.
 	 *
-	 * @param array $vars Existing query vars.
-	 * @return array
+	 * Endpoint: /wp-json/slcrm/v1/webhook
+	 * GET  — Meta token verification handshake.
+	 * POST — Inbound message payload.
 	 */
-	public function add_query_var( $vars ) {
-		$vars[] = 'slcrm_msg_webhook';
-		return $vars;
+	public function register_rest_routes() {
+		register_rest_route(
+			'slcrm/v1',
+			'/webhook',
+			array(
+				'methods'             => array( 'GET', 'POST' ),
+				'callback'            => array( $this, 'handle_webhook' ),
+				'permission_callback' => '__return_true',
+			)
+		);
 	}
 
 	/**
-	 * Handle incoming webhook requests on template_redirect.
+	 * REST API callback — routes GET to verification, POST to processing.
+	 *
+	 * @param WP_REST_Request $request Incoming request.
+	 * @return WP_REST_Response
 	 */
-	public function handle_webhook() {
-		$trigger = get_query_var( 'slcrm_msg_webhook' );
-		if ( '' === $trigger ) {
-			return;
+	public function handle_webhook( WP_REST_Request $request ) {
+		if ( 'GET' === $request->get_method() ) {
+			return $this->verify_webhook( $request );
 		}
 
-		if ( 'GET' === $_SERVER['REQUEST_METHOD'] ) {
-			$this->verify_webhook();
-			return;
+		if ( 'POST' === $request->get_method() ) {
+			return $this->receive_webhook( $request );
 		}
 
-		if ( 'POST' === $_SERVER['REQUEST_METHOD'] ) {
-			$this->receive_webhook();
-			return;
-		}
-
-		status_header( 405 );
-		exit;
+		return new WP_REST_Response( array( 'error' => 'Method not allowed' ), 405 );
 	}
 
 	/**
-	 * Meta webhook verification handshake.
+	 * Meta webhook verification handshake (GET).
+	 *
+	 * Meta sends hub.mode, hub.verify_token, hub.challenge as query params
+	 * with dots, not underscores.
+	 *
+	 * @param WP_REST_Request $request Incoming GET request.
+	 * @return WP_REST_Response
 	 */
-	private function verify_webhook() {
+	private function verify_webhook( WP_REST_Request $request ) {
 		$verify_token = $this->get_setting( 'whatsapp_verify_token' );
-		$mode         = isset( $_GET['hub_mode'] ) ? sanitize_text_field( wp_unslash( $_GET['hub_mode'] ) ) : '';
-		$token        = isset( $_GET['hub_verify_token'] ) ? sanitize_text_field( wp_unslash( $_GET['hub_verify_token'] ) ) : '';
-		$challenge    = isset( $_GET['hub_challenge'] ) ? sanitize_text_field( wp_unslash( $_GET['hub_challenge'] ) ) : '';
+
+		// Meta uses dots in parameter names: hub.mode, hub.verify_token, hub.challenge.
+		$params    = $request->get_query_params();
+		$mode      = isset( $params['hub.mode'] ) ? sanitize_text_field( $params['hub.mode'] ) : '';
+		$token     = isset( $params['hub.verify_token'] ) ? sanitize_text_field( $params['hub.verify_token'] ) : '';
+		$challenge = isset( $params['hub.challenge'] ) ? sanitize_text_field( $params['hub.challenge'] ) : '';
 
 		if ( 'subscribe' === $mode && $token === $verify_token && '' !== $challenge ) {
+			// Meta requires a plain-text 200 response containing only the challenge.
+			status_header( 200 );
+			header( 'Content-Type: text/plain' );
 			echo esc_html( $challenge );
 			exit;
 		}
 
-		status_header( 403 );
-		exit;
+		return new WP_REST_Response( array( 'error' => 'Verification failed. Check your verify token.' ), 403 );
 	}
 
 	/**
 	 * Receive and process an incoming webhook POST from Meta.
+	 *
+	 * @param WP_REST_Request $request Incoming POST request.
+	 * @return WP_REST_Response
 	 */
-	private function receive_webhook() {
-		$raw     = file_get_contents( 'php://input' );
+	private function receive_webhook( WP_REST_Request $request ) {
+		$raw     = $request->get_body();
 		$payload = json_decode( $raw, true );
 
 		if ( empty( $payload ) || ! isset( $payload['entry'] ) ) {
-			status_header( 200 );
-			echo wp_json_encode( array( 'status' => 'ignored' ) );
-			exit;
+			return new WP_REST_Response( array( 'status' => 'ignored' ), 200 );
 		}
 
 		foreach ( $payload['entry'] as $entry ) {
@@ -137,9 +144,8 @@ class Smart_Lead_CRM_Messaging {
 			}
 		}
 
-		status_header( 200 );
-		echo wp_json_encode( array( 'status' => 'received' ) );
-		exit;
+		// Always return 200 immediately so Meta doesn't retry.
+		return new WP_REST_Response( array( 'status' => 'received' ), 200 );
 	}
 
 	// ── Inbound message processing ─────────────────────────────────
