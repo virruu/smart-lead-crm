@@ -93,7 +93,9 @@ class Smart_Lead_CRM_Messaging {
 	 * Meta webhook verification handshake (GET).
 	 *
 	 * Meta sends hub.mode, hub.verify_token, hub.challenge as query params
-	 * with dots, not underscores.
+	 * with literal dots. PHP converts dots to underscores in $_GET and
+	 * WP_REST_Request::get_query_params(), so we must parse the raw query
+	 * string ourselves to preserve the dots.
 	 *
 	 * @param WP_REST_Request $request Incoming GET request.
 	 * @return WP_REST_Response
@@ -101,21 +103,59 @@ class Smart_Lead_CRM_Messaging {
 	private function verify_webhook( WP_REST_Request $request ) {
 		$verify_token = $this->get_setting( 'whatsapp_verify_token' );
 
-		// Meta uses dots in parameter names: hub.mode, hub.verify_token, hub.challenge.
-		$params    = $request->get_query_params();
+		// PHP converts dots to underscores in $_GET / get_query_params().
+		// Parse QUERY_STRING directly so hub.mode, hub.verify_token, hub.challenge
+		// are preserved with their original dot names.
+		$params = $this->parse_raw_query_string();
+
 		$mode      = isset( $params['hub.mode'] ) ? sanitize_text_field( $params['hub.mode'] ) : '';
 		$token     = isset( $params['hub.verify_token'] ) ? sanitize_text_field( $params['hub.verify_token'] ) : '';
 		$challenge = isset( $params['hub.challenge'] ) ? sanitize_text_field( $params['hub.challenge'] ) : '';
 
-		if ( 'subscribe' === $mode && $token === $verify_token && '' !== $challenge ) {
+		if ( 'subscribe' === $mode && hash_equals( $verify_token, $token ) && '' !== $challenge ) {
 			// Meta requires a plain-text 200 response containing only the challenge.
 			status_header( 200 );
 			header( 'Content-Type: text/plain' );
-			echo esc_html( $challenge );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo $challenge;
 			exit;
 		}
 
-		return new WP_REST_Response( array( 'error' => 'Verification failed. Check your verify token.' ), 403 );
+		return new WP_REST_Response(
+			array( 'error' => 'Verification failed. Check your verify token in Smart Lead CRM Settings.' ),
+			403
+		);
+	}
+
+	/**
+	 * Parse $_SERVER['QUERY_STRING'] manually to preserve dots in param names.
+	 *
+	 * PHP's built-in query-string parser silently replaces dots (and spaces) in
+	 * key names with underscores. Meta's webhook handshake uses hub.mode,
+	 * hub.verify_token, and hub.challenge — so we must bypass the built-in
+	 * parsing entirely.
+	 *
+	 * @return array Associative array of raw query params with dots intact.
+	 */
+	private function parse_raw_query_string() {
+		$raw    = isset( $_SERVER['QUERY_STRING'] ) ? $_SERVER['QUERY_STRING'] : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		$result = array();
+
+		if ( '' === $raw ) {
+			return $result;
+		}
+
+		foreach ( explode( '&', $raw ) as $pair ) {
+			$parts = explode( '=', $pair, 2 );
+			if ( count( $parts ) !== 2 ) {
+				continue;
+			}
+			$key         = urldecode( $parts[0] );
+			$value       = urldecode( $parts[1] );
+			$result[ $key ] = $value;
+		}
+
+		return $result;
 	}
 
 	/**
