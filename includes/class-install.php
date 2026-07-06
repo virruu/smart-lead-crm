@@ -57,7 +57,6 @@ class Smart_Lead_CRM_Installer {
 		$this->schedule_events();
 		update_option( 'smart_lead_crm_db_version', SMART_LEAD_CRM_DB_VERSION );
 		update_option( 'smart_lead_crm_install_date', current_time( 'mysql' ) );
-		flush_rewrite_rules();
 	}
 
 	/**
