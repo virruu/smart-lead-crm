@@ -259,7 +259,7 @@ class Smart_Lead_CRM_Settings {
 	 * Render WhatsApp section description.
 	 */
 	public function render_whatsapp_section() {
-		echo '<p>' . esc_html__( 'Connect your WhatsApp Business API to automatically match inbound messages to leads. Webhook URL:', 'smart-lead-crm' ) . ' <code>' . esc_html( home_url( '/slcrm-whatsapp-webhook' ) ) . '</code></p>';
+		echo '<p>' . esc_html__( 'Connect your WhatsApp Business API to automatically match inbound messages to leads. Webhook URL:', 'smart-lead-crm' ) . ' <code>' . esc_html( rest_url( 'slcrm/v1/webhook' ) ) . '</code></p>';
 	}
 
 	/**
