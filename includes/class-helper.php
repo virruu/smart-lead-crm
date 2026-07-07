@@ -22,6 +22,7 @@ class Smart_Lead_CRM_Helper {
 	 * @var array
 	 */
 	private $lead_statuses = array(
+		'new_lead'   => 'New Lead',
 		'pending'    => 'Pending',
 		'contacted'  => 'Contacted',
 		'booked'     => 'Booked',
@@ -106,27 +107,12 @@ class Smart_Lead_CRM_Helper {
 	 * @return string
 	 */
 	public function format_date( $date, $format = 'M j, Y' ) {
-
-    if (
-        empty( $date ) ||
-        $date === '0000-00-00' ||
-        $date === '0000-00-00 00:00:00'
-    ) {
-        return '—';
-    }
-
-    $timestamp = strtotime( $date );
-
-    if ( ! $timestamp ) {
-        return '—';
-    }
-
-    return wp_date(
-        $format,
-        $timestamp,
-        wp_timezone()
-    );
-}
+		if ( empty( $date ) || '0000-00-00' === $date || '0000-00-00 00:00:00' === $date ) {
+			return '—';
+		}
+		$timestamp = strtotime( $date );
+		return $timestamp ? date( $format, $timestamp ) : '—';
+	}
 
 	/**
 	 * Get client IP address.
