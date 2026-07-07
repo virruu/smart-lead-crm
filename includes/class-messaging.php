@@ -344,6 +344,10 @@ class Smart_Lead_CRM_Messaging {
 	 *   2. E164 normalized match
 	 *   3. Last 10 digits fuzzy match
 	 *
+	 * When an existing lead is found, its name (if empty), remarks (last
+	 * message), and last_updated timestamp are refreshed so the CRM always
+	 * shows the latest customer message.
+	 *
 	 * @param string $phone Raw phone from WhatsApp (e.g. 919876543210).
 	 * @param string $name  Sender's WhatsApp profile name.
 	 * @param string $text  First message body.
@@ -359,22 +363,38 @@ class Smart_Lead_CRM_Messaging {
 
 		// Step 1: Exact match on normalized phone.
 		$lead = $db->find_lead_by_phone( $normalized );
-		if ( $lead ) {
-			return $lead;
-		}
-
-		// Step 2: E164 normalized match.
-		if ( $e164 && $e164 !== $normalized ) {
-			$lead = $db->find_lead_by_phone( $e164 );
-			if ( $lead ) {
-				return $lead;
+		if ( ! $lead ) {
+			// Step 2: E164 normalized match.
+			if ( $e164 && $e164 !== $normalized ) {
+				$lead = $db->find_lead_by_phone( $e164 );
+			}
+			// Step 3: Last 10 digits fuzzy match.
+			if ( ! $lead ) {
+				$lead = $db->find_lead_by_phone_partial( $normalized );
 			}
 		}
 
-		// Step 3: Last 10 digits fuzzy match.
-		$lead = $db->find_lead_by_phone_partial( $normalized );
 		if ( $lead ) {
-			return $lead;
+			// Refresh: update name if we have a better one, store last message,
+			// bump last_updated so the lead floats to the top of the list.
+			$update = array( 'last_updated' => current_time( 'mysql' ) );
+
+			if ( ! empty( $name ) && empty( $lead->name ) ) {
+				$update['name'] = $name;
+			}
+
+			if ( ! empty( $text ) ) {
+				$update['remarks'] = $text;
+			}
+
+			// If the lead was marked cancelled or booked, bump it back to
+			// follow-up since the customer is actively messaging again.
+			if ( in_array( $lead->status, array( 'cancelled', 'booked' ), true ) ) {
+				$update['status'] = 'follow-up';
+			}
+
+			$db->update_lead( $lead->id, $update );
+			return $db->get_lead( $lead->id );
 		}
 
 		// No match — create a new lead attributed to WhatsApp.
@@ -384,10 +404,10 @@ class Smart_Lead_CRM_Messaging {
 		$lead_data = array(
 			'phone'       => $normalized,
 			'name'        => $name,
-			'status'      => 'pending',
+			'status'      => 'new_lead',
 			'lead_source' => $attrib['source'],
 			'medium'      => $attrib['medium'],
-			'remarks'     => 'Auto-created from WhatsApp message',
+			'remarks'     => $text,
 		);
 
 		$lead_id = $db->insert_lead( $lead_data );
