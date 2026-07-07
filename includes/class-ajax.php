@@ -358,6 +358,10 @@ class Smart_Lead_CRM_Ajax {
 			$data['booking_date'] = sanitize_text_field( wp_unslash( $_POST['booking_date'] ) );
 		}
 
+		if ( isset( $_POST['follow_up_date'] ) ) {
+			$data['follow_up_date'] = sanitize_text_field( wp_unslash( $_POST['follow_up_date'] ) );
+		}
+
 		$result = smart_lead_crm()->db->update_lead( $lead_id, $data );
 
 		if ( false === $result ) {
