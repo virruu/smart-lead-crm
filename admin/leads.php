@@ -78,6 +78,18 @@ if ( 'view' === $action && $lead_id ) {
 	usort( $timeline, function( $a, $b ) {
 		return strtotime( $a['time'] ) - strtotime( $b['time'] );
 	} );
+
+	// Compute customer intelligence stats.
+	$total_conversations = count( $conversations );
+	$total_messages      = count( $all_messages );
+	$last_contacted      = ! empty( $all_messages ) ? end( $all_messages )->created_at : ( $lead ? $lead->last_updated : '' );
+	$customer_ltv        = 0;
+	foreach ( $bookings as $b ) {
+		if ( 'booked' === $b->status ) {
+			$customer_ltv += (float) $b->fare;
+		}
+	}
+	$wa_number = $lead ? preg_replace( '/[^0-9]/', '', $lead->phone ) : '';
 	?>
 	<div class="wrap slcrm-wrap">
 		<h1 class="slcrm-title">
@@ -90,9 +102,34 @@ if ( 'view' === $action && $lead_id ) {
 		<div class="slcrm-lead-detail">
 			<div class="slcrm-lead-main">
 				<div class="slcrm-card">
-					<h2><?php echo esc_html( $lead->name ? $lead->name : $lead->phone ); ?>
+					<h2>
+						<span class="slcrm-lead-id">Lead #<?php echo esc_html( $lead->id ); ?></span>
+						<?php echo esc_html( $lead->name ? $lead->name : $lead->phone ); ?>
 						<span class="slcrm-status-badge slcrm-status-<?php echo esc_attr( $lead->status ); ?>"><?php echo esc_html( $helper->get_status_label( $lead->status ) ); ?></span>
 					</h2>
+					<?php if ( ! empty( $wa_number ) ) : ?>
+					<a href="https://wa.me/<?php echo esc_attr( $wa_number ); ?>" target="_blank" class="button button-primary slcrm-wa-chat-btn">
+						<span class="dashicons dashicons-whatsapp"></span> <?php esc_html_e( 'Chat on WhatsApp', 'smart-lead-crm' ); ?>
+					</a>
+					<?php endif; ?>
+					<div class="slcrm-intelligence-grid">
+						<div class="slcrm-intel-item">
+							<span class="slcrm-intel-label"><?php esc_html_e( 'Total Conversations', 'smart-lead-crm' ); ?></span>
+							<span class="slcrm-intel-value"><?php echo esc_html( number_format_i18n( $total_conversations ) ); ?></span>
+						</div>
+						<div class="slcrm-intel-item">
+							<span class="slcrm-intel-label"><?php esc_html_e( 'Total Messages', 'smart-lead-crm' ); ?></span>
+							<span class="slcrm-intel-value"><?php echo esc_html( number_format_i18n( $total_messages ) ); ?></span>
+						</div>
+						<div class="slcrm-intel-item">
+							<span class="slcrm-intel-label"><?php esc_html_e( 'Last Contacted', 'smart-lead-crm' ); ?></span>
+							<span class="slcrm-intel-value"><?php echo esc_html( $last_contacted ? $helper->format_date( $last_contacted, 'M j, Y g:i a' ) : 'â' ); ?></span>
+						</div>
+						<div class="slcrm-intel-item">
+							<span class="slcrm-intel-label"><?php esc_html_e( 'Customer LTV', 'smart-lead-crm' ); ?></span>
+							<span class="slcrm-intel-value"><?php echo esc_html( $helper->format_currency( $customer_ltv ) ); ?></span>
+						</div>
+					</div>
 					<table class="slcrm-detail-table">
 						<tr><th><?php esc_html_e( 'Phone', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->phone ); ?></td></tr>
 						<tr><th><?php esc_html_e( 'Email', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->email ? $lead->email : '—' ); ?></td></tr>
@@ -124,6 +161,7 @@ if ( 'view' === $action && $lead_id ) {
 						<tr><th><?php esc_html_e( 'UTM Content', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->utm_content ? $lead->utm_content : '—' ); ?></td></tr>
 						<tr><th><?php esc_html_e( 'Booking Route', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-route" value="<?php echo esc_attr( $lead->booking_route ); ?>" /></td></tr>
 						<tr><th><?php esc_html_e( 'Booking Date', 'smart-lead-crm' ); ?></th><td><input type="date" id="slcrm-lead-booking-date" value="<?php echo esc_attr( $lead->booking_date ? $lead->booking_date : '' ); ?>" /></td></tr>
+						<tr><th><?php esc_html_e( 'Follow-up Date', 'smart-lead-crm' ); ?></th><td><input type="date" id="slcrm-lead-follow-up-date" value="<?php echo esc_attr( isset( $lead->follow_up_date ) && $lead->follow_up_date ? $lead->follow_up_date : '' ); ?>" /></td></tr>
 						<tr><th><?php esc_html_e( 'Landing Page', 'smart-lead-crm' ); ?></th><td><a href="<?php echo esc_url( $lead->landing_page ); ?>" target="_blank"><?php echo esc_html( $lead->landing_page ); ?></a></td></tr>
 						<tr><th><?php esc_html_e( 'Device', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->device ); ?></td></tr>
 						<tr><th><?php esc_html_e( 'Browser', 'smart-lead-crm' ); ?></th><td><?php echo esc_html( $lead->browser ); ?></td></tr>
@@ -298,11 +336,13 @@ if ( 'view' === $action && $lead_id ) {
 
 // List view.
 $args = array(
-	'number' => $per_page,
-	'offset' => ( $paged - 1 ) * $per_page,
-	'search' => $search,
-	'status' => $status,
-	'source' => $source,
+	'number'  => $per_page,
+	'offset'  => ( $paged - 1 ) * $per_page,
+	'search'  => $search,
+	'status'  => $status,
+	'source'  => $source,
+	'orderby' => 'last_updated',
+	'order'   => 'DESC',
 );
 
 $leads     = $db->get_leads( $args );
@@ -341,28 +381,30 @@ $sources   = $helper->get_lead_sources();
 	<table class="slcrm-table slcrm-leads-table">
 		<thead>
 			<tr>
-				<th><?php esc_html_e( 'ID', 'smart-lead-crm' ); ?></th>
+				<th><?php esc_html_e( 'Lead #', 'smart-lead-crm' ); ?></th>
 				<th><?php esc_html_e( 'Name', 'smart-lead-crm' ); ?></th>
 				<th><?php esc_html_e( 'Phone', 'smart-lead-crm' ); ?></th>
 				<th><?php esc_html_e( 'Status', 'smart-lead-crm' ); ?></th>
 				<th><?php esc_html_e( 'Source', 'smart-lead-crm' ); ?></th>
-				<th><?php esc_html_e( 'Campaign', 'smart-lead-crm' ); ?></th>
-				<th><?php esc_html_e( 'Route', 'smart-lead-crm' ); ?></th>
-				<th><?php esc_html_e( 'Created', 'smart-lead-crm' ); ?></th>
+				<th><?php esc_html_e( 'Last Message', 'smart-lead-crm' ); ?></th>
+				<th><?php esc_html_e( 'Last Updated', 'smart-lead-crm' ); ?></th>
 				<th><?php esc_html_e( 'Actions', 'smart-lead-crm' ); ?></th>
 			</tr>
 		</thead>
 		<tbody>
 		<?php foreach ( $leads as $lead ) : ?>
 			<tr>
-				<td>#<?php echo esc_html( $lead->id ); ?></td>
+				<td><strong>#<?php echo esc_html( $lead->id ); ?></strong></td>
 				<td><?php echo esc_html( $lead->name ? $lead->name : '—' ); ?></td>
-				<td><?php echo esc_html( $lead->phone ); ?></td>
+				<td>
+					<a href="https://wa.me/<?php echo esc_attr( preg_replace( '/[^0-9]/', '', $lead->phone ) ); ?>" target="_blank" title="<?php esc_attr_e( 'Chat on WhatsApp', 'smart-lead-crm' ); ?>">
+						<?php echo esc_html( $lead->phone ); ?>
+					</a>
+				</td>
 				<td><span class="slcrm-status-badge slcrm-status-<?php echo esc_attr( $lead->status ); ?>"><?php echo esc_html( $helper->get_status_label( $lead->status ) ); ?></span></td>
 				<td><?php echo esc_html( $helper->get_source_label( $lead->lead_source ) ); ?></td>
-				<td><?php echo esc_html( $lead->campaign ? $lead->campaign : '—' ); ?></td>
-				<td><?php echo esc_html( $lead->booking_route ? $lead->booking_route : '—' ); ?></td>
-				<td><?php echo esc_html( $helper->format_date( $lead->created_at ) ); ?></td>
+				<td class="slcrm-last-message"><?php echo esc_html( $lead->remarks ? wp_trim_words( $lead->remarks, 8, '…' ) : '—' ); ?></td>
+				<td><?php echo esc_html( $helper->format_date( $lead->last_updated, 'M j, Y g:i a' ) ); ?></td>
 				<td>
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=smart-lead-crm-leads&action=view&lead_id=' . $lead->id ) ); ?>" class="button button-small"><?php esc_html_e( 'View', 'smart-lead-crm' ); ?></a>
 				</td>
