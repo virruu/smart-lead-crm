@@ -106,6 +106,7 @@ class Smart_Lead_CRM_Installer {
 			landing_page TEXT NOT NULL,
 			booking_route VARCHAR(255) NOT NULL DEFAULT '',
 			booking_date DATE NULL DEFAULT NULL,
+			follow_up_date DATE NULL DEFAULT NULL,
 			remarks TEXT NOT NULL,
 			device VARCHAR(100) NOT NULL DEFAULT '',
 			browser VARCHAR(100) NOT NULL DEFAULT '',
