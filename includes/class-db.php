@@ -727,6 +727,7 @@ class Smart_Lead_CRM_DB {
 			'landing_page'  => '%s',
 			'booking_route' => '%s',
 			'booking_date'  => '%s',
+			'follow_up_date' => '%s',
 			'remarks'       => '%s',
 			'device'        => '%s',
 			'browser'       => '%s',
