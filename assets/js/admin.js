@@ -37,6 +37,7 @@
 				campaign: $('#slcrm-lead-campaign').val(),
 				booking_route: $('#slcrm-lead-route').val(),
 				booking_date: $('#slcrm-lead-booking-date').val(),
+				follow_up_date: $('#slcrm-lead-follow-up-date').val(),
 				remarks: $('#slcrm-lead-remarks').val()
 			}, function (response) {
 				$btn.prop('disabled', false);
