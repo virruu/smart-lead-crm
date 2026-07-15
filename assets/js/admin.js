@@ -1,256 +1,176 @@
-/**
- * Smart Lead CRM - Admin JavaScript
- *
- * @package SmartLeadCRM
- */
-
 (function ($) {
-	'use strict';
+    'use strict';
 
-	$(document).ready(function () {
-		// Animate stat cards on load.
-		$('.slcrm-stat-card').each(function (index) {
-			var $card = $(this);
-			$card.css('opacity', 0);
-			setTimeout(function () {
-				$card.css({
-					opacity: 1,
-					transition: 'opacity 0.4s ease'
-				});
-			}, index * 60);
-		});
+    var nonce   = (typeof slcrmAdmin !== 'undefined') ? slcrmAdmin.nonce : '';
+    var ajaxUrl = (typeof slcrmAdmin !== 'undefined') ? slcrmAdmin.ajaxUrl : (typeof ajaxurl !== 'undefined' ? ajaxurl : '');
 
-		// Save lead details.
-		$('#slcrm-save-lead').on('click', function (e) {
-			e.preventDefault();
-			var leadId = $(this).data('lead-id');
-			var $btn = $(this);
-			$btn.prop('disabled', true);
+    function showNotice(el, type, message) {
+        el.removeClass('slcrm-notice-success slcrm-notice-error slcrm-notice-loading')
+          .addClass('slcrm-notice-' + type)
+          .text(message).stop(true).fadeIn(200);
+        if (type !== 'loading') setTimeout(function () { el.fadeOut(400); }, 3500);
+    }
 
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_update_lead',
-				nonce: slcrmAdmin.nonce,
-				lead_id: leadId,
-				name: $('#slcrm-lead-campaign').closest('.slcrm-card').find('h2').text(),
-				status: $('#slcrm-lead-status').val(),
-				lead_source: $('#slcrm-lead-source').val(),
-				campaign: $('#slcrm-lead-campaign').val(),
-				booking_route: $('#slcrm-lead-route').val(),
-				booking_date: $('#slcrm-lead-booking-date').val(),
-				follow_up_date: $('#slcrm-lead-follow-up-date').val(),
-				remarks: $('#slcrm-lead-remarks').val()
-			}, function (response) {
-				$btn.prop('disabled', false);
-				if (response.success) {
-					showNotice($btn, response.data.message, 'success');
-				} else {
-					showNotice($btn, response.data.message, 'error');
-				}
-			});
-		});
+    function escHtml(str) {
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
 
-		// Delete lead.
-		$('#slcrm-delete-lead').on('click', function (e) {
-			e.preventDefault();
-			if (!confirm(slcrmAdmin.confirmDelete || 'Delete this lead and all related data?')) {
-				return;
-			}
-			var leadId = $(this).data('lead-id');
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_delete_lead',
-				nonce: slcrmAdmin.nonce,
-				lead_id: leadId
-			}, function (response) {
-				if (response.success) {
-					window.location.href = slcrmAdmin.leadsUrl || (slcrmAdmin.ajaxUrl.replace('admin-ajax.php', 'admin.php') + '?page=smart-lead-crm-leads');
-				} else {
-					alert(response.data.message);
-				}
-			});
-		});
+    // Stat card entrance animation
+    $('.slcrm-stat-card').each(function (i) {
+        var $el = $(this);
+        $el.css({ opacity: 0, transform: 'translateY(12px)' });
+        setTimeout(function () {
+            $el.css({ transition: 'opacity .35s, transform .35s', opacity: 1, transform: 'translateY(0)' });
+        }, 50 + i * 60);
+    });
 
-		// Add note.
-		$('#slcrm-add-note').on('click', function (e) {
-			e.preventDefault();
-			var leadId = $(this).data('lead-id');
-			var note = $('#slcrm-note-text').val();
-			if (!note) return;
+    // Settings tabs
+    $(document).on('click', '.slcrm-settings-tab', function (e) {
+        e.preventDefault();
+        var target = $(this).data('tab');
+        $('.slcrm-settings-tab').removeClass('active');
+        $(this).addClass('active');
+        $('.slcrm-tab-panel').removeClass('active');
+        $('#slcrm-tab-' + target).addClass('active');
+    });
+    if ($('.slcrm-settings-tab').length) $('.slcrm-settings-tab').first().trigger('click');
 
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_add_note',
-				nonce: slcrmAdmin.nonce,
-				lead_id: leadId,
-				note: note
-			}, function (response) {
-				if (response.success) {
-					$('#slcrm-notes-list').prepend(
-						'<div class="slcrm-note">' +
-						'<div class="slcrm-note-text">' + escapeHtml(note) + '</div>' +
-						'<div class="slcrm-note-meta">' + response.data.created_at + ' — ' + escapeHtml(response.data.author) + '</div>' +
-						'</div>'
-					);
-					$('#slcrm-note-text').val('');
-				} else {
-					alert(response.data.message);
-				}
-			});
-		});
+    // Mode card click (settings radio)
+    $(document).on('click', '.slcrm-mode-card', function () {
+        var $card = $(this);
+        $card.find('input[type="radio"]').prop('checked', true);
+        $card.closest('.slcrm-mode-cards').find('.slcrm-mode-card').removeClass('slcrm-mode-card--active');
+        $card.addClass('slcrm-mode-card--active');
+    });
 
-		// Add booking.
-		$('#slcrm-add-booking').on('click', function (e) {
-			e.preventDefault();
-			var leadId = $(this).data('lead-id');
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_add_booking',
-				nonce: slcrmAdmin.nonce,
-				lead_id: leadId,
-				booking_type: $('#slcrm-booking-type').val(),
-				route: $('#slcrm-booking-route').val(),
-				fare: $('#slcrm-booking-fare').val(),
-				booking_date: $('#slcrm-booking-date').val(),
-				driver: $('#slcrm-booking-driver').val(),
-				booking_status: $('#slcrm-booking-status').val()
-			}, function (response) {
-				if (response.success) {
-					alert(response.data.message);
-					window.location.reload();
-				} else {
-					alert(response.data.message);
-				}
-			});
-		});
+    // Save lead
+    var $saveNotice = $('#slcrm-save-notice');
+    $(document).on('click', '#slcrm-save-lead', function (e) {
+        e.preventDefault();
+        var leadId = $(this).data('lead-id');
+        showNotice($saveNotice, 'loading', 'Saving…');
+        $.post(ajaxUrl, {
+            action: 'slcrm_update_lead', nonce: nonce, lead_id: leadId,
+            status: $('#slcrm-lead-status').val(),
+            lead_source: $('#slcrm-lead-source').val(),
+            campaign: $('#slcrm-lead-campaign').val(),
+            ad_group: $('#slcrm-lead-ad-group').val(),
+            keyword: $('#slcrm-lead-keyword').val(),
+            booking_route: $('#slcrm-lead-route').val(),
+            booking_date: $('#slcrm-lead-booking-date').val(),
+            follow_up_date: $('#slcrm-lead-follow-up-date').val(),
+            remarks: $('#slcrm-lead-remarks').val()
+        }).done(function (res) {
+            if (res.success) {
+                showNotice($saveNotice, 'success', 'Saved successfully.');
+            } else {
+                showNotice($saveNotice, 'error', res.data || 'Save failed.');
+            }
+        }).fail(function () { showNotice($saveNotice, 'error', 'Network error.'); });
+    });
 
-		// Update booking status.
-		$(document).on('change', '.slcrm-booking-status', function () {
-			var bookingId = $(this).data('booking-id');
-			var leadId = $(this).data('lead-id');
-			var status = $(this).val();
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_update_booking',
-				nonce: slcrmAdmin.nonce,
-				booking_id: bookingId,
-				lead_id: leadId,
-				status: status
-			}, function (response) {
-				if (!response.success) {
-					alert(response.data.message);
-				}
-			});
-		});
+    // Quick status change
+    $(document).on('change', '#slcrm-lead-status', function () {
+        var leadId = $(this).data('lead-id');
+        if (!leadId) return;
+        $.post(ajaxUrl, { action: 'slcrm_update_lead', nonce: nonce, lead_id: leadId, status: $(this).val() });
+    });
 
-		// Update lead status from dropdown (quick change).
-		$(document).on('change', '#slcrm-lead-status', function () {
-			var leadId = $(this).data('lead-id');
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_update_lead',
-				nonce: slcrmAdmin.nonce,
-				lead_id: leadId,
-				status: $(this).val()
-			}, function (response) {
-				if (!response.success) {
-					alert(response.data.message);
-				}
-			});
-		});
+    // Delete lead
+    $(document).on('click', '#slcrm-delete-lead', function (e) {
+        e.preventDefault();
+        var msg = (typeof slcrmAdmin !== 'undefined' && slcrmAdmin.confirmDelete) ? slcrmAdmin.confirmDelete : 'Delete this lead?';
+        if (!window.confirm(msg)) return;
+        var leadId = $(this).data('lead-id');
+        $.post(ajaxUrl, { action: 'slcrm_delete_lead', nonce: nonce, lead_id: leadId }).done(function (res) {
+            if (res.success && typeof slcrmAdmin !== 'undefined') window.location.href = slcrmAdmin.leadsUrl;
+        });
+    });
 
-		// Frontend lead form submission.
-		$(document).on('submit', '#slcrm-lead-form', function (e) {
-			e.preventDefault();
-			var $form = $(this);
-			var $btn = $form.find('.slcrm-submit-btn');
-			var $msg = $('#slcrm-form-message');
-			$btn.prop('disabled', true).text('Submitting...');
+    // Add note
+    $(document).on('click', '#slcrm-add-note', function (e) {
+        e.preventDefault();
+        var $btn = $(this), text = $('#slcrm-note-text').val().trim(), leadId = $btn.data('lead-id');
+        if (!text) return;
+        $btn.prop('disabled', true);
+        $.post(ajaxUrl, { action: 'slcrm_add_note', nonce: nonce, lead_id: leadId, note: text }).done(function (res) {
+            if (res.success) {
+                var now = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                $('#slcrm-notes-list').prepend('<div class="slcrm-note-item">' + escHtml(text) + '<div class="slcrm-note-meta"><span>' + now + '</span></div></div>');
+                $('#slcrm-note-text').val('');
+            }
+        }).always(function () { $btn.prop('disabled', false); });
+    });
 
-			$.post(slcrmTracker.ajaxUrl, {
-				action: 'slcrm_submit_lead',
-				nonce: slcrmTracker.nonce,
-				phone: $form.find('#slcrm-phone').val(),
-				name: $form.find('#slcrm-name').val(),
-				email: $form.find('#slcrm-email').val()
-			}, function (response) {
-				$btn.prop('disabled', false).text($btn.data('original-text') || 'Submit');
-				if (response.success) {
-					$msg.removeClass('error').addClass('success').text(response.data.message).show();
-					$form[0].reset();
-				} else {
-					$msg.removeClass('success').addClass('error').text(response.data.message).show();
-				}
-			}).fail(function () {
-				$btn.prop('disabled', false);
-				$msg.removeClass('success').addClass('error').text('An error occurred. Please try again.').show();
-			});
-		});
+    // Add booking
+    $(document).on('click', '#slcrm-add-booking', function (e) {
+        e.preventDefault();
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        $.post(ajaxUrl, {
+            action: 'slcrm_add_booking', nonce: nonce, lead_id: $btn.data('lead-id'),
+            booking_type: $('#slcrm-booking-type').val(), route: $('#slcrm-booking-route').val(),
+            fare: $('#slcrm-booking-fare').val(), booking_date: $('#slcrm-booking-date').val(),
+            driver: $('#slcrm-booking-driver').val(), status: $('#slcrm-booking-status-add').val()
+        }).done(function (res) { if (res.success) window.location.reload(); }).always(function () { $btn.prop('disabled', false); });
+    });
 
-		// Send conversation reply (channel-agnostic).
-		$('#slcrm-send-reply').on('click', function (e) {
-			e.preventDefault();
-			var leadId = $(this).data('lead-id');
-			var convId = $(this).data('conversation-id');
-			var body = $('#slcrm-conv-reply').val();
-			if (!body) return;
-			var $btn = $(this);
-			$btn.prop('disabled', true);
+    // Update booking status
+    $(document).on('change', '.slcrm-booking-status', function () {
+        var $sel = $(this);
+        $.post(ajaxUrl, { action: 'slcrm_update_booking', nonce: nonce, booking_id: $sel.data('booking-id'), status: $sel.val() }).done(function (res) {
+            if (res.success) {
+                var flash = $sel.closest('.slcrm-booking-card');
+                flash.css('background', '#f0fdf4');
+                setTimeout(function () { flash.css('background', ''); }, 1000);
+            }
+        });
+    });
 
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_send_reply',
-				nonce: slcrmAdmin.nonce,
-				lead_id: leadId,
-				conversation_id: convId,
-				body: body
-			}, function (response) {
-				$btn.prop('disabled', false);
-				if (response.success) {
-					$('#slcrm-conv-thread').append(
-						'<div class="slcrm-conv-msg slcrm-conv-outbound">' +
-						'<div class="slcrm-conv-msg-type">Text</div>' +
-						'<div class="slcrm-conv-msg-body">' + escapeHtml(response.data.body) + '</div>' +
-						'<div class="slcrm-conv-msg-meta">' + response.data.timestamp + '</div>' +
-						'</div>'
-					);
-					$('#slcrm-conv-reply').val('');
-					$('#slcrm-conv-thread').scrollTop($('#slcrm-conv-thread')[0].scrollHeight);
-				} else {
-					alert(response.data.message);
-				}
-			});
-		});
+    // Send reply
+    $(document).on('click', '#slcrm-send-reply', function (e) {
+        e.preventDefault();
+        var $btn = $(this), text = $('#slcrm-conv-reply').val().trim();
+        if (!text) return;
+        $btn.prop('disabled', true).text('Sending…');
+        $.post(ajaxUrl, {
+            action: 'slcrm_send_reply', nonce: nonce,
+            lead_id: $btn.data('lead-id'), conversation_id: $btn.data('conversation-id'), message: text
+        }).done(function (res) {
+            if (res.success) {
+                var timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                var $thread = $('#slcrm-conv-thread');
+                $thread.append('<div class="slcrm-msg slcrm-msg-out"><div class="slcrm-msg-bubble">' + escHtml(text) + '<div class="slcrm-msg-time">' + timeStr + '</div></div></div>');
+                $thread.scrollTop($thread[0].scrollHeight);
+                $('#slcrm-conv-reply').val('');
+            }
+        }).always(function () { $btn.prop('disabled', false).text('Send'); });
+    });
 
-		// Assign conversation to a WP user.
-		$('#slcrm-conv-assign').on('change', function () {
-			var convId = $(this).data('conversation-id');
-			var userId = $(this).val();
-			$.post(slcrmAdmin.ajaxUrl, {
-				action: 'slcrm_assign_conversation',
-				nonce: slcrmAdmin.nonce,
-				conversation_id: convId,
-				user_id: userId
-			}, function (response) {
-				if (response.success) {
-					// Optionally show a brief confirmation.
-				}
-			});
-		});
+    // Copy webhook URL
+    $(document).on('click', '.slcrm-copy-btn', function (e) {
+        e.preventDefault();
+        var text = $(this).data('copy'), $btn = $(this);
+        navigator.clipboard.writeText(text).then(function () {
+            var orig = $btn.html();
+            $btn.html('<span class="dashicons dashicons-yes-alt"></span> Copied!').addClass('copied');
+            setTimeout(function () { $btn.html(orig).removeClass('copied'); }, 2000);
+        });
+    });
 
-		// Store original button text.
-		$('.slcrm-submit-btn').each(function () {
-			$(this).data('original-text', $(this).text());
-		});
+    // Scroll conv thread to bottom on load
+    var $thread = $('#slcrm-conv-thread');
+    if ($thread.length) $thread.scrollTop($thread[0].scrollHeight);
 
-		function showNotice($el, message, type) {
-			var $notice = $('<div class="slcrm-form-message ' + type + '">' + escapeHtml(message) + '</div>');
-			$el.after($notice);
-			setTimeout(function () { $notice.fadeOut(300, function () { $(this).remove(); }); }, 3000);
-		}
+    // Conv reply auto-resize
+    $(document).on('input', '#slcrm-conv-reply', function () {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+    });
 
-		function escapeHtml(str) {
-			if (!str) return '';
-			return String(str)
-				.replace(/&/g, '&amp;')
-				.replace(/</g, '&lt;')
-				.replace(/>/g, '&gt;')
-				.replace(/"/g, '&quot;')
-				.replace(/'/g, '&#039;');
-		}
-	});
+    // Filter form enter key
+    $(document).on('keypress', '.slcrm-filters input', function (e) {
+        if (e.which === 13) $(this).closest('form').submit();
+    });
 
-})(jQuery);
+}(jQuery));
