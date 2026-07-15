@@ -1,270 +1,153 @@
-/**
- * Smart Lead CRM - Frontend Tracker
- *
- * 1. Generates a persistent visitor_id (UUID v4, 365-day cookie)
- * 2. Captures GCLID, GBRAID, WBRAID, UTM parameters into cookies
- * 3. Detects clicks on tel: links, wa.me, and api.whatsapp.com links
- * 4. Auto-creates a lead via AJAX when a visitor clicks WhatsApp or call
- *
- * Flow: Visitor → Google Ads → Landing Page → Clicks WhatsApp → Lead auto-created
- *
- * @package SmartLeadCRM
- */
-
 (function () {
-	'use strict';
+    'use strict';
 
-	// --- Cookie helpers ---
+    function setCookie(name, value, days) {
+        var d = new Date();
+        d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+        document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/';
+    }
 
-	function setCookie(name, value, days) {
-		var expires = '';
-		if (days) {
-			var date = new Date();
-			date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-			expires = '; expires=' + date.toUTCString();
-		}
-		document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/';
-	}
+    function getCookie(name) {
+        var n = name + '=';
+        var ca = document.cookie.split(';');
+        for (var i = 0; i < ca.length; i++) {
+            var c = ca[i].trim();
+            if (c.indexOf(n) === 0) return decodeURIComponent(c.substring(n.length));
+        }
+        return '';
+    }
 
-	function getCookie(name) {
-		var nameEQ = name + '=';
-		var ca = document.cookie.split(';');
-		for (var i = 0; i < ca.length; i++) {
-			var c = ca[i];
-			while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-			if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
-		}
-		return null;
-	}
+    function generateUUID() {
+        if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
 
-	// --- UUID v4 generator (RFC 4122 compliant) ---
+    function ensureVisitorId() {
+        var id = getCookie('slcrm_visitor_id');
+        if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+            id = generateUUID();
+            setCookie('slcrm_visitor_id', id, 365);
+        }
+        return id;
+    }
 
-	function generateUUID() {
-		if (window.crypto && window.crypto.randomUUID) {
-			return window.crypto.randomUUID();
-		}
-		// Fallback for older browsers.
-		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-			var r = Math.random() * 16 | 0;
-			var v = c === 'x' ? r : (r & 0x3 | 0x8);
-			return v.toString(16);
-		});
-	}
+    function captureUrlParams() {
+        var params = new URLSearchParams(window.location.search);
+        var captureKeys = ['gclid', 'gbraid', 'wbraid', 'utm_source', 'utm_campaign', 'utm_medium', 'utm_term', 'utm_content'];
+        for (var i = 0; i < captureKeys.length; i++) {
+            var val = params.get(captureKeys[i]);
+            if (val) setCookie('slcrm_' + captureKeys[i], val, 90);
+        }
+        // First-visit cookies
+        if (!getCookie('slcrm_landing_page')) setCookie('slcrm_landing_page', window.location.href, 90);
+        if (!getCookie('slcrm_referer')) setCookie('slcrm_referer', document.referrer, 90);
 
-	// --- Visitor ID: persistent for 365 days ---
+        // Device + browser
+        if (!getCookie('slcrm_device')) {
+            var ua = navigator.userAgent;
+            var device = /tablet|ipad|playbook|silk/i.test(ua) ? 'Tablet' : /mobile|android|iphone|ipod|blackberry|opera mini/i.test(ua) ? 'Mobile' : 'Desktop';
+            setCookie('slcrm_device', device, 90);
+        }
+        if (!getCookie('slcrm_browser')) {
+            var ua2 = navigator.userAgent;
+            var browser = ua2.indexOf('Edg') > -1 ? 'Edge' : ua2.indexOf('Chrome') > -1 ? 'Chrome' : ua2.indexOf('Firefox') > -1 ? 'Firefox' : ua2.indexOf('Safari') > -1 ? 'Safari' : ua2.indexOf('MSIE') > -1 || ua2.indexOf('Trident') > -1 ? 'IE' : 'Unknown';
+            setCookie('slcrm_browser', browser, 90);
+        }
+    }
 
-	var VISITOR_COOKIE = 'slcrm_visitor_id';
-	var VISITOR_DAYS = 365;
+    function isWhatsAppLink(href) {
+        return href && (href.indexOf('wa.me') > -1 || href.indexOf('api.whatsapp.com') > -1 || href.indexOf('whatsapp://') > -1);
+    }
 
-	function ensureVisitorId() {
-		var visitorId = getCookie(VISITOR_COOKIE);
-		if (!visitorId) {
-			visitorId = generateUUID();
-			setCookie(VISITOR_COOKIE, visitorId, VISITOR_DAYS);
-		}
-		return visitorId;
-	}
+    function isTelLink(href) {
+        return href && href.indexOf('tel:') === 0;
+    }
 
-	var visitorId = ensureVisitorId();
+    function extractPhoneFromWhatsApp(href) {
+        var match = href.match(/(?:wa\.me\/|api\.whatsapp\.com\/send\?phone=|whatsapp:\/\/send\?phone=)([0-9]+)/);
+        return match ? match[1] : '';
+    }
 
-	// --- URL parameter capture ---
+    function extractPhoneFromTel(href) {
+        return href.replace(/[^0-9+]/g, '');
+    }
 
-	var urlParams = [
-		'gclid', 'gbraid', 'wbraid',
-		'utm_source', 'utm_campaign', 'utm_medium', 'utm_term', 'utm_content'
-	];
+    var leadFired = false;
 
-	var cookieNames = {
-		'gclid': 'slcrm_gclid',
-		'gbraid': 'slcrm_gbraid',
-		'wbraid': 'slcrm_wbraid',
-		'utm_source': 'slcrm_utm_source',
-		'utm_campaign': 'slcrm_utm_campaign',
-		'utm_medium': 'slcrm_utm_medium',
-		'utm_term': 'slcrm_utm_term',
-		'utm_content': 'slcrm_utm_content'
-	};
+    function createLead(action, phone) {
+        if (leadFired) return;
+        leadFired = true;
 
-	var TRACKING_DAYS = 90;
+        var data = new URLSearchParams();
+        data.append('action', 'slcrm_auto_lead');
+        data.append('nonce', (typeof slcrmTracker !== 'undefined') ? slcrmTracker.nonce : '');
+        data.append('visitor_id', ensureVisitorId());
+        data.append('lead_action', action);
+        if (phone) data.append('phone', phone);
 
-	function getQueryParam(name) {
-		var params = new URLSearchParams(window.location.search);
-		return params.get(name);
-	}
+        // Collect all cookies
+        var cookieKeys = ['gclid', 'gbraid', 'wbraid', 'utm_source', 'utm_campaign', 'utm_medium', 'utm_term', 'utm_content', 'landing_page', 'referer', 'device', 'browser'];
+        for (var i = 0; i < cookieKeys.length; i++) {
+            var val = getCookie('slcrm_' + cookieKeys[i]);
+            if (val) data.append(cookieKeys[i], val);
+        }
 
-	urlParams.forEach(function (param) {
-		var value = getQueryParam(param);
-		if (value) {
-			setCookie(cookieNames[param], value, TRACKING_DAYS);
-		}
-	});
+        var url = (typeof slcrmTracker !== 'undefined') ? slcrmTracker.ajaxUrl : '/wp-admin/admin-ajax.php';
+        var payload = data.toString();
 
-	// Store landing page on first visit.
-	if (!getCookie('slcrm_landing_page')) {
-		setCookie('slcrm_landing_page', window.location.href, TRACKING_DAYS);
-	}
+        // Use sendBeacon for unload-safe delivery, fall back to sync XHR
+        if (navigator.sendBeacon) {
+            var blob = new Blob([payload], { type: 'application/x-www-form-urlencoded' });
+            navigator.sendBeacon(url, blob);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', url, false);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.send(payload);
+        }
+    }
 
-	// Store referer on first visit.
-	if (!getCookie('slcrm_referer') && document.referrer) {
-		setCookie('slcrm_referer', document.referrer, TRACKING_DAYS);
-	}
+    function attachLinkListeners() {
+        var links = document.querySelectorAll('a[href]');
+        for (var i = 0; i < links.length; i++) {
+            (function (link) {
+                link.addEventListener('click', function () {
+                    var href = link.getAttribute('href');
+                    if (isWhatsAppLink(href)) {
+                        createLead('whatsapp', extractPhoneFromWhatsApp(href));
+                    } else if (isTelLink(href)) {
+                        createLead('phone', extractPhoneFromTel(href));
+                    }
+                }, { once: true });
+            })(links[i]);
+        }
+    }
 
-	// Detect and store device.
-	if (!getCookie('slcrm_device')) {
-		setCookie('slcrm_device', detectDevice(), TRACKING_DAYS);
-	}
+    function init() {
+        captureUrlParams();
+        ensureVisitorId();
+        attachLinkListeners();
 
-	// Detect and store browser.
-	if (!getCookie('slcrm_browser')) {
-		setCookie('slcrm_browser', detectBrowser(), TRACKING_DAYS);
-	}
+        // Watch for dynamically added links
+        if (window.MutationObserver) {
+            var observer = new MutationObserver(function (mutations) {
+                for (var i = 0; i < mutations.length; i++) {
+                    if (mutations[i].addedNodes.length) {
+                        attachLinkListeners();
+                        break;
+                    }
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+    }
 
-	function detectDevice() {
-		var ua = navigator.userAgent || '';
-		if (/iPad|Tablet|Android(?!.*Mobile)/i.test(ua)) return 'Tablet';
-		if (/Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return 'Mobile';
-		return 'Desktop';
-	}
-
-	function detectBrowser() {
-		var ua = navigator.userAgent || '';
-		if (ua.indexOf('Edg') > -1) return 'Microsoft Edge';
-		if (ua.indexOf('Chrome') > -1) return 'Google Chrome';
-		if (ua.indexOf('Firefox') > -1) return 'Mozilla Firefox';
-		if (ua.indexOf('Safari') > -1) return 'Safari';
-		if (ua.indexOf('MSIE') > -1 || ua.indexOf('Trident') > -1) return 'Internet Explorer';
-		if (ua.indexOf('Opera') > -1 || ua.indexOf('OPR') > -1) return 'Opera';
-		return 'Unknown';
-	}
-
-	// --- Collect all tracking data from cookies ---
-
-	function collectTrackingData() {
-		return {
-			visitor_id: visitorId,
-			gclid: getCookie('slcrm_gclid') || '',
-			gbraid: getCookie('slcrm_gbraid') || '',
-			wbraid: getCookie('slcrm_wbraid') || '',
-			utm_source: getCookie('slcrm_utm_source') || '',
-			utm_campaign: getCookie('slcrm_utm_campaign') || '',
-			utm_medium: getCookie('slcrm_utm_medium') || '',
-			utm_term: getCookie('slcrm_utm_term') || '',
-			utm_content: getCookie('slcrm_utm_content') || '',
-			landing_page: getCookie('slcrm_landing_page') || window.location.href,
-			referer: getCookie('slcrm_referer') || '',
-			device: getCookie('slcrm_device') || detectDevice(),
-			browser: getCookie('slcrm_browser') || detectBrowser()
-		};
-	}
-
-	// --- Lead detection: tel: and WhatsApp links ---
-
-	// Track if we've already fired a lead for this page view to avoid duplicates.
-	var leadFired = false;
-
-	function isWhatsAppLink(href) {
-		if (!href) return false;
-		var h = href.toLowerCase();
-		return h.indexOf('wa.me') > -1 ||
-		       h.indexOf('api.whatsapp.com') > -1 ||
-		       h.indexOf('whatsapp://send') > -1;
-	}
-
-	function isTelLink(href) {
-		if (!href) return false;
-		return href.toLowerCase().indexOf('tel:') === 0;
-	}
-
-	function extractPhoneFromTel(href) {
-		return href.replace(/^tel:/i, '').replace(/[^0-9+]/g, '');
-	}
-
-	function extractPhoneFromWhatsApp(href) {
-		// wa.me/919876543210 or api.whatsapp.com/send?phone=919876543210
-		var match = href.match(/wa\.me\/(\+?[0-9]+)/i);
-		if (match) return match[1];
-		match = href.match(/[?&]phone=([0-9+]+)/i);
-		if (match) return match[1];
-		return '';
-	}
-
-	function createLead(action, phone) {
-		if (leadFired) return;
-		leadFired = true;
-
-		var data = collectTrackingData();
-		data.action = 'slcrm_auto_lead';
-		data.nonce = (window.slcrmTracker && slcrmTracker.nonce) || '';
-		data.lead_action = action; // 'whatsapp' or 'call'
-		data.phone = phone || '';
-
-		// Use navigator.sendBeacon if available (works even if page unloads).
-		if (navigator.sendBeacon) {
-			var formData = new FormData();
-			Object.keys(data).forEach(function (key) {
-				formData.append(key, data[key]);
-			});
-			navigator.sendBeacon(slcrmTracker.ajaxUrl, formData);
-		} else {
-			// Fallback to synchronous XHR.
-			var xhr = new XMLHttpRequest();
-			xhr.open('POST', slcrmTracker.ajaxUrl, false);
-			xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-			var params = [];
-			Object.keys(data).forEach(function (key) {
-				params.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
-			});
-			xhr.send(params.join('&'));
-		}
-	}
-
-	// --- Attach click listeners to all links ---
-
-	function attachLinkListeners() {
-		var links = document.querySelectorAll('a[href]');
-
-		links.forEach(function (link) {
-			link.addEventListener('click', function (e) {
-				var href = link.getAttribute('href') || '';
-
-				if (isWhatsAppLink(href)) {
-					var phone = extractPhoneFromWhatsApp(href);
-					createLead('whatsapp', phone);
-				} else if (isTelLink(href)) {
-					var telPhone = extractPhoneFromTel(href);
-					createLead('call', telPhone);
-				}
-			});
-		});
-	}
-
-	// Run when DOM is ready.
-	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', attachLinkListeners);
-	} else {
-		attachLinkListeners();
-	}
-
-	// Also watch for dynamically added links (e.g., lazy-loaded content).
-	if (window.MutationObserver) {
-		var observer = new MutationObserver(function (mutations) {
-			mutations.forEach(function (mutation) {
-				mutation.addedNodes.forEach(function (node) {
-					if (node.nodeType === 1 && node.tagName === 'A' && node.getAttribute('href')) {
-						node.addEventListener('click', function () {
-							var href = node.getAttribute('href') || '';
-							if (isWhatsAppLink(href)) {
-								createLead('whatsapp', extractPhoneFromWhatsApp(href));
-							} else if (isTelLink(href)) {
-								createLead('call', extractPhoneFromTel(href));
-							}
-						});
-					}
-				});
-			});
-		});
-
-		observer.observe(document.body, { childList: true, subtree: true });
-	}
-
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();
