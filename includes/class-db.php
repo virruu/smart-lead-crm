@@ -1,208 +1,82 @@
 <?php
-/**
- * Database helper class - CRUD with prepared statements.
- *
- * @package SmartLeadCRM
- */
+if ( ! defined( 'ABSPATH' ) ) exit;
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-
-/**
- * Database helper class.
- *
- * @package SmartLeadCRM
- */
 class Smart_Lead_CRM_DB {
 
-	/**
-	 * WordPress database object.
-	 *
-	 * @var wpdb
-	 */
-	protected $wpdb;
+	public $wpdb;
+	public $tables = array();
 
-	/**
-	 * Table names.
-	 *
-	 * @var array
-	 */
-	protected $tables = array();
-
-	/**
-	 * Constructor.
-	 */
 	public function __construct() {
 		global $wpdb;
-		$this->wpdb   = $wpdb;
+		$this->wpdb = $wpdb;
 		$this->tables = array(
-			'leads'    => $wpdb->prefix . 'slcrm_leads',
-			'tracking' => $wpdb->prefix . 'slcrm_tracking',
-			'bookings' => $wpdb->prefix . 'slcrm_bookings',
-			'notes'    => $wpdb->prefix . 'slcrm_notes',
+			'leads'         => $wpdb->prefix . 'slcrm_leads',
+			'tracking'      => $wpdb->prefix . 'slcrm_tracking',
+			'bookings'      => $wpdb->prefix . 'slcrm_bookings',
+			'notes'         => $wpdb->prefix . 'slcrm_notes',
+			'conversations' => $wpdb->prefix . 'slcrm_conversations',
+			'messages'      => $wpdb->prefix . 'slcrm_messages',
 		);
 	}
 
-	/**
-	 * Get a table name.
-	 *
-	 * @param string $key Table key.
-	 * @return string
-	 */
-	public function table( $key ) {
-		return isset( $this->tables[ $key ] ) ? $this->tables[ $key ] : '';
-	}
+	/* ── Lead CRUD ─────────────────────────────────────────── */
 
-	/**
-	 * Insert a lead.
-	 *
-	 * @param array $data Lead data.
-	 * @return int|false Inserted ID or false on failure.
-	 */
 	public function insert_lead( $data ) {
-		$defaults = array(
-			'created_at'    => current_time( 'mysql' ),
-			'last_updated'  => current_time( 'mysql' ),
-			'status'        => 'pending',
-		);
-		$data = wp_parse_args( $data, $defaults );
-
 		$format = $this->get_lead_format( $data );
 		$result = $this->wpdb->insert( $this->tables['leads'], $data, $format );
-
 		return $result ? (int) $this->wpdb->insert_id : false;
 	}
 
-	/**
-	 * Update a lead.
-	 *
-	 * @param int   $id   Lead ID.
-	 * @param array $data Data to update.
-	 * @return int|false Number of rows updated or false.
-	 */
 	public function update_lead( $id, $data ) {
-		$data['last_updated'] = current_time( 'mysql' );
-		$format               = $this->get_lead_format( $data );
-		$where_format         = array( '%d' );
-
-		return $this->wpdb->update( $this->tables['leads'], $data, array( 'id' => $id ), $format, $where_format );
-	}
-
-	/**
-	 * Delete a lead.
-	 *
-	 * @param int $id Lead ID.
-	 * @return int|false Number of rows deleted or false.
-	 */
-	public function delete_lead( $id ) {
-		return $this->wpdb->delete( $this->tables['leads'], array( 'id' => $id ), array( '%d' ) );
-	}
-
-	/**
-	 * Get a single lead by ID.
-	 *
-	 * @param int $id Lead ID.
-	 * @return object|null
-	 */
-	public function get_lead( $id ) {
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['leads']} WHERE id = %d",
-			$id
-		);
-		return $this->wpdb->get_row( $query );
-	}
-
-	/**
-	 * Find a lead by visitor_id created today (for dedup).
-	 *
-	 * @param string $visitor_id Visitor UUID.
-	 * @return object|null
-	 */
-	public function find_lead_by_visitor_today( $visitor_id ) {
-		$today_start = current_time( 'Y-m-d 00:00:00' );
-		$today_end   = current_time( 'Y-m-d 23:59:59' );
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['leads']} WHERE visitor_id = %s AND created_at BETWEEN %s AND %s ORDER BY created_at DESC LIMIT 1",
-			$visitor_id,
-			$today_start,
-			$today_end
-		);
-		return $this->wpdb->get_row( $query );
-	}
-
-	/**
-	 * Find a lead by visitor_id (most recent, any date).
-	 *
-	 * @param string $visitor_id Visitor UUID.
-	 * @return object|null
-	 */
-	public function find_lead_by_visitor( $visitor_id ) {
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['leads']} WHERE visitor_id = %s ORDER BY created_at DESC LIMIT 1",
-			$visitor_id
-		);
-		return $this->wpdb->get_row( $query );
-	}
-
-	/**
-	 * Find a lead by exact phone number match.
-	 *
-	 * Checks both the phone column and customer_mobile column.
-	 *
-	 * @param string $phone Normalized phone number.
-	 * @return object|null
-	 */
-	public function find_lead_by_phone( $phone ) {
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['leads']} WHERE phone = %s OR customer_mobile = %s ORDER BY created_at DESC LIMIT 1",
-			$phone,
-			$phone
-		);
-		return $this->wpdb->get_row( $query );
-	}
-
-	/**
-	 * Find a lead by partial phone number match (last 10 digits).
-	 *
-	 * Handles cases where one system stored the number with country code
-	 * and another without. Matches on the last 10 digits to find the same
-	 * customer regardless of prefix.
-	 *
-	 * @param string $phone Normalized phone number.
-	 * @return object|null
-	 */
-	public function find_lead_by_phone_partial( $phone ) {
-		if ( strlen( $phone ) < 10 ) {
-			return null;
+		$format = $this->get_lead_format( $data );
+		$result = $this->wpdb->update( $this->tables['leads'], $data, array( 'id' => $id ), $format, array( '%d' ) );
+		if ( $result ) {
+			$this->wpdb->update( $this->tables['leads'], array( 'last_updated' => current_time( 'mysql' ) ), array( 'id' => $id ), array( '%s' ), array( '%d' ) );
 		}
-		$tail = substr( $phone, -10 );
-		$like  = '%' . $this->wpdb->esc_like( $tail );
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['leads']} WHERE phone LIKE %s OR customer_mobile LIKE %s ORDER BY created_at DESC LIMIT 1",
-			$like,
-			$like
-		);
-		return $this->wpdb->get_row( $query );
+		return (bool) $result;
 	}
 
-	/**
-	 * Get leads with optional filters.
-	 *
-	 * @param array $args Query arguments.
-	 * @return array
-	 */
+	public function delete_lead( $id ) {
+		return (bool) $this->wpdb->delete( $this->tables['leads'], array( 'id' => $id ), array( '%d' ) );
+	}
+
+	public function delete_lead_cascade( $id ) {
+		$this->wpdb->delete( $this->tables['tracking'], array( 'lead_id' => $id ), array( '%d' ) );
+		$this->wpdb->delete( $this->tables['bookings'], array( 'lead_id' => $id ), array( '%d' ) );
+		$this->wpdb->delete( $this->tables['notes'],    array( 'lead_id' => $id ), array( '%d' ) );
+		$conv_ids = $this->wpdb->get_col( $this->wpdb->prepare(
+			"SELECT id FROM {$this->tables['conversations']} WHERE lead_id = %d", $id
+		) );
+		if ( $conv_ids ) {
+			foreach ( $conv_ids as $cid ) {
+				$this->wpdb->delete( $this->tables['messages'], array( 'conversation_id' => $cid ), array( '%d' ) );
+			}
+		}
+		$this->wpdb->delete( $this->tables['conversations'], array( 'lead_id' => $id ), array( '%d' ) );
+		$this->delete_lead( $id );
+	}
+
+	public function get_lead( $id ) {
+		return $this->wpdb->get_row( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE id = %d", $id
+		) );
+	}
+
 	public function get_leads( $args = array() ) {
 		$defaults = array(
-			'number'  => 20,
+			'number'  => 25,
 			'offset'  => 0,
-			'orderby'  => 'created_at',
-			'order'    => 'DESC',
-			'status'   => '',
-			'search'   => '',
-			'source'   => '',
+			'orderby' => 'last_updated',
+			'order'   => 'DESC',
+			'status'  => '',
+			'source'  => '',
+			'search'  => '',
 		);
 		$args = wp_parse_args( $args, $defaults );
+
+		$allowed = array( 'last_updated', 'created_at', 'name', 'phone', 'status', 'lead_source' );
+		$orderby = in_array( $args['orderby'], $allowed, true ) ? $args['orderby'] : 'last_updated';
+		$order   = strtoupper( $args['order'] ) === 'ASC' ? 'ASC' : 'DESC';
 
 		$where  = ' WHERE 1=1';
 		$params = array();
@@ -216,46 +90,25 @@ class Smart_Lead_CRM_DB {
 			$params[] = $args['source'];
 		}
 		if ( ! empty( $args['search'] ) ) {
-			$search   = '%' . $this->wpdb->esc_like( $args['search'] ) . '%';
+			$s        = '%' . $this->wpdb->esc_like( $args['search'] ) . '%';
 			$where    .= ' AND (phone LIKE %s OR name LIKE %s OR booking_route LIKE %s OR campaign LIKE %s)';
-			$params[] = $search;
-			$params[] = $search;
-			$params[] = $search;
-			$params[] = $search;
+			$params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
 		}
 
-		// Whitelist orderby.
-		$allowed_orderby = array( 'id', 'created_at', 'last_updated', 'status', 'phone', 'name' );
-		$orderby         = in_array( $args['orderby'], $allowed_orderby, true ) ? $args['orderby'] : 'created_at';
-		$order           = 'ASC' === strtoupper( $args['order'] ) ? 'ASC' : 'DESC';
-
-		$where   .= " ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+		$limit  = ' LIMIT %d OFFSET %d';
 		$params[] = (int) $args['number'];
 		$params[] = (int) $args['offset'];
 
-		$query = "SELECT * FROM {$this->tables['leads']} {$where}";
-		$query = $this->wpdb->prepare( $query, $params );
-
-		return $this->wpdb->get_results( $query );
+		$sql = "SELECT * FROM {$this->tables['leads']}{$where} ORDER BY $orderby $order $limit";
+		return $this->wpdb->get_results( $this->wpdb->prepare( $sql, $params ) );
 	}
 
-	/**
-	 * Count leads.
-	 *
-	 * @param array $args Query arguments.
-	 * @return int
-	 */
 	public function count_leads( $args = array() ) {
-		$defaults = array(
-			'status' => '',
-			'source' => '',
-			'search' => '',
-		);
+		$defaults = array( 'status' => '', 'source' => '', 'search' => '' );
 		$args = wp_parse_args( $args, $defaults );
 
 		$where  = ' WHERE 1=1';
 		$params = array();
-
 		if ( ! empty( $args['status'] ) ) {
 			$where   .= ' AND status = %s';
 			$params[] = $args['status'];
@@ -265,543 +118,322 @@ class Smart_Lead_CRM_DB {
 			$params[] = $args['source'];
 		}
 		if ( ! empty( $args['search'] ) ) {
-			$search   = '%' . $this->wpdb->esc_like( $args['search'] ) . '%';
+			$s        = '%' . $this->wpdb->esc_like( $args['search'] ) . '%';
 			$where    .= ' AND (phone LIKE %s OR name LIKE %s OR booking_route LIKE %s OR campaign LIKE %s)';
-			$params[] = $search;
-			$params[] = $search;
-			$params[] = $search;
-			$params[] = $search;
+			$params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
 		}
-
-		$query = "SELECT COUNT(*) FROM {$this->tables['leads']} {$where}";
-		if ( ! empty( $params ) ) {
-			$query = $this->wpdb->prepare( $query, $params );
-		}
-
-		return (int) $this->wpdb->get_var( $query );
+		$sql = "SELECT COUNT(*) FROM {$this->tables['leads']}{$where}";
+		if ( ! empty( $params ) ) $sql = $this->wpdb->prepare( $sql, $params );
+		return (int) $this->wpdb->get_var( $sql );
 	}
 
-	/**
-	 * Insert a tracking record.
-	 *
-	 * @param array $data Tracking data.
-	 * @return int|false
-	 */
-	public function insert_tracking( $data ) {
-		$defaults = array(
-			'visit_time' => current_time( 'mysql' ),
-		);
-		$data = wp_parse_args( $data, $defaults );
+	public function find_lead_by_phone( $phone ) {
+		return $this->wpdb->get_row( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE phone = %s ORDER BY created_at DESC LIMIT 1", $phone
+		) );
+	}
 
+	public function find_lead_by_phone_partial( $phone ) {
+		$digits = preg_replace( '/[^0-9]/', '', $phone );
+		if ( strlen( $digits ) < 10 ) return null;
+		$last10 = substr( $digits, -10 );
+		return $this->wpdb->get_row( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE phone LIKE %s ORDER BY created_at DESC LIMIT 1",
+			'%' . $this->wpdb->esc_like( $last10 )
+		) );
+	}
+
+	public function find_lead_by_visitor( $visitor_id ) {
+		return $this->wpdb->get_row( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE visitor_id = %s ORDER BY created_at DESC LIMIT 1", $visitor_id
+		) );
+	}
+
+	public function find_lead_by_visitor_today( $visitor_id ) {
+		return $this->wpdb->get_row( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE visitor_id = %s AND DATE(created_at) = %s ORDER BY created_at DESC LIMIT 1",
+			$visitor_id, current_time( 'Y-m-d' )
+		) );
+	}
+
+	/* ── Tracking ──────────────────────────────────────────── */
+
+	public function insert_tracking( $data ) {
 		$format = $this->get_tracking_format( $data );
 		$result = $this->wpdb->insert( $this->tables['tracking'], $data, $format );
-
 		return $result ? (int) $this->wpdb->insert_id : false;
 	}
 
-	/**
-	 * Get tracking records for a lead.
-	 *
-	 * @param int $lead_id Lead ID.
-	 * @return array
-	 */
 	public function get_tracking( $lead_id ) {
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['tracking']} WHERE lead_id = %d ORDER BY visit_time DESC",
-			$lead_id
-		);
-		return $this->wpdb->get_results( $query );
+		return $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['tracking']} WHERE lead_id = %d ORDER BY visit_time ASC", $lead_id
+		) );
 	}
 
-	/**
-	 * Insert a booking.
-	 *
-	 * @param array $data Booking data.
-	 * @return int|false
-	 */
-	public function insert_booking( $data ) {
-		$defaults = array(
-			'created_at' => current_time( 'mysql' ),
-			'updated_at' => current_time( 'mysql' ),
-			'status'     => 'pending',
-		);
-		$data = wp_parse_args( $data, $defaults );
+	/* ── Bookings ──────────────────────────────────────────── */
 
+	public function insert_booking( $data ) {
 		$format = $this->get_booking_format( $data );
 		$result = $this->wpdb->insert( $this->tables['bookings'], $data, $format );
-
 		return $result ? (int) $this->wpdb->insert_id : false;
 	}
 
-	/**
-	 * Get bookings for a lead.
-	 *
-	 * @param int $lead_id Lead ID.
-	 * @return array
-	 */
-	public function get_bookings( $lead_id ) {
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['bookings']} WHERE lead_id = %d ORDER BY booking_date DESC",
-			$lead_id
-		);
-		return $this->wpdb->get_results( $query );
+	public function update_booking( $id, $data ) {
+		$format = $this->get_booking_format( $data );
+		return (bool) $this->wpdb->update( $this->tables['bookings'], $data, array( 'id' => $id ), $format, array( '%d' ) );
 	}
 
-	/**
-	 * Insert a note.
-	 *
-	 * @param array $data Note data.
-	 * @return int|false
-	 */
+	public function delete_booking( $id ) {
+		return (bool) $this->wpdb->delete( $this->tables['bookings'], array( 'id' => $id ), array( '%d' ) );
+	}
+
+	public function get_booking( $id ) {
+		return $this->wpdb->get_row( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['bookings']} WHERE id = %d", $id
+		) );
+	}
+
+	public function get_bookings( $lead_id ) {
+		return $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['bookings']} WHERE lead_id = %d ORDER BY created_at DESC", $lead_id
+		) );
+	}
+
+	/* ── Notes ─────────────────────────────────────────────── */
+
 	public function insert_note( $data ) {
 		$defaults = array(
+			'lead_id'    => 0,
+			'note'       => '',
+			'author_id'  => get_current_user_id(),
 			'created_at' => current_time( 'mysql' ),
 		);
 		$data = wp_parse_args( $data, $defaults );
-
-		$format = array( '%d', '%s', '%d', '%s' );
-		$result = $this->wpdb->insert( $this->tables['notes'], $data, $format );
-
+		$result = $this->wpdb->insert( $this->tables['notes'], $data, array( '%d', '%s', '%d', '%s' ) );
 		return $result ? (int) $this->wpdb->insert_id : false;
 	}
 
-	/**
-	 * Get notes for a lead.
-	 *
-	 * @param int $lead_id Lead ID.
-	 * @return array
-	 */
 	public function get_notes( $lead_id ) {
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['notes']} WHERE lead_id = %d ORDER BY created_at DESC",
-			$lead_id
-		);
-		return $this->wpdb->get_results( $query );
+		return $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['notes']} WHERE lead_id = %d ORDER BY created_at DESC", $lead_id
+		) );
 	}
 
-	/**
-	 * Update a booking.
-	 *
-	 * @param int   $id   Booking ID.
-	 * @param array $data Data to update.
-	 * @return int|false
-	 */
-	public function update_booking( $id, $data ) {
-		$data['updated_at'] = current_time( 'mysql' );
-		$format             = $this->get_booking_format( $data );
-		return $this->wpdb->update( $this->tables['bookings'], $data, array( 'id' => $id ), $format, array( '%d' ) );
-	}
+	/* ── Dashboard Stats ───────────────────────────────────── */
 
-	/**
-	 * Delete a booking.
-	 *
-	 * @param int $id Booking ID.
-	 * @return int|false
-	 */
-	public function delete_booking( $id ) {
-		return $this->wpdb->delete( $this->tables['bookings'], array( 'id' => $id ), array( '%d' ) );
-	}
-
-	/**
-	 * Get a single booking by ID.
-	 *
-	 * @param int $id Booking ID.
-	 * @return object|null
-	 */
-	public function get_booking( $id ) {
-		$query = $this->wpdb->prepare(
-			"SELECT * FROM {$this->tables['bookings']} WHERE id = %d",
-			$id
-		);
-		return $this->wpdb->get_row( $query );
-	}
-
-	/**
-	 * Delete all data related to a lead (tracking, bookings, notes).
-	 *
-	 * @param int $lead_id Lead ID.
-	 */
-	public function delete_lead_cascade( $lead_id ) {
-		$this->wpdb->delete( $this->tables['tracking'], array( 'lead_id' => $lead_id ), array( '%d' ) );
-		$this->wpdb->delete( $this->tables['bookings'], array( 'lead_id' => $lead_id ), array( '%d' ) );
-		$this->wpdb->delete( $this->tables['notes'], array( 'lead_id' => $lead_id ), array( '%d' ) );
-		$this->wpdb->delete( $this->tables['leads'], array( 'id' => $lead_id ), array( '%d' ) );
-	}
-
-	/**
-	 * Get report data for a date range.
-	 *
-	 * @param string $start_date Start date (Y-m-d).
-	 * @param string $end_date   End date (Y-m-d).
-	 * @return array
-	 */
-	public function get_report_data( $start_date, $end_date ) {
-		$leads_table    = $this->tables['leads'];
-		$bookings_table = $this->tables['bookings'];
-
-		$report = array(
-			'total_leads'      => 0,
-			'total_bookings'   => 0,
-			'revenue'          => 0,
-			'conversion'       => 0,
-			'avg_fare'         => 0,
-			'repeat_customers' => 0,
-			'top_routes'       => array(),
-			'top_campaigns'    => array(),
-			'top_landing_pages' => array(),
-			'by_source'        => array(),
-			'by_status'        => array(),
-			'campaign_roi'     => array(),
-			'keyword_roi'      => array(),
-			'source_revenue'   => array(),
-			'google_ads_conversions' => 0,
-			'google_ads_revenue'     => 0,
-		);
-
-		$start = $start_date . ' 00:00:00';
-		$end   = $end_date . ' 23:59:59';
-
-		// Total leads in range.
-		$report['total_leads'] = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM {$leads_table} WHERE created_at BETWEEN %s AND %s",
-				$start,
-				$end
-			)
-		);
-
-		// Total bookings in range.
-		$report['total_bookings'] = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM {$bookings_table} WHERE created_at BETWEEN %s AND %s AND status = %s",
-				$start,
-				$end,
-				'booked'
-			)
-		);
-
-		// Revenue.
-		$report['revenue'] = (float) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COALESCE(SUM(fare), 0) FROM {$bookings_table} WHERE created_at BETWEEN %s AND %s AND status = %s",
-				$start,
-				$end,
-				'booked'
-			)
-		);
-
-		// Conversion %.
-		if ( $report['total_leads'] > 0 ) {
-			$report['conversion'] = round( ( $report['total_bookings'] / $report['total_leads'] ) * 100, 2 );
-		}
-
-		// Average fare.
-		$report['avg_fare'] = (float) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COALESCE(AVG(fare), 0) FROM {$bookings_table} WHERE created_at BETWEEN %s AND %s AND status = %s",
-				$start,
-				$end,
-				'booked'
-			)
-		);
-
-		// Repeat customers.
-		$report['repeat_customers'] = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM (SELECT lead_id FROM {$bookings_table} WHERE created_at BETWEEN %s AND %s GROUP BY lead_id HAVING COUNT(*) > 1) AS repeats",
-				$start,
-				$end
-			)
-		);
-
-		// Top routes.
-		$report['top_routes'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT route, COUNT(*) as count, SUM(fare) as revenue FROM {$bookings_table} WHERE created_at BETWEEN %s AND %s AND status = %s AND route != '' GROUP BY route ORDER BY count DESC LIMIT 10",
-				$start,
-				$end,
-				'booked'
-			)
-		);
-
-		// Top campaigns.
-		$report['top_campaigns'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT campaign, COUNT(*) as count FROM {$leads_table} WHERE created_at BETWEEN %s AND %s AND campaign != '' GROUP BY campaign ORDER BY count DESC LIMIT 10",
-				$start,
-				$end
-			)
-		);
-
-		// Top landing pages.
-		$report['top_landing_pages'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT landing_page, COUNT(*) as count FROM {$leads_table} WHERE created_at BETWEEN %s AND %s AND landing_page != '' GROUP BY landing_page ORDER BY count DESC LIMIT 10",
-				$start,
-				$end
-			)
-		);
-
-		// Leads by source.
-		$report['by_source'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT lead_source, COUNT(*) as count FROM {$leads_table} WHERE created_at BETWEEN %s AND %s AND lead_source != '' GROUP BY lead_source ORDER BY count DESC",
-				$start,
-				$end
-			)
-		);
-
-		// Leads by status.
-		$report['by_status'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT status, COUNT(*) as count FROM {$leads_table} WHERE created_at BETWEEN %s AND %s GROUP BY status ORDER BY count DESC",
-				$start,
-				$end
-			)
-		);
-
-		// Campaign ROI — leads, bookings, and revenue per campaign.
-		$report['campaign_roi'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT l.campaign, COUNT(DISTINCT l.id) as leads,
-					COUNT(DISTINCT CASE WHEN b.status = 'booked' THEN b.id END) as bookings,
-					COALESCE(SUM(CASE WHEN b.status = 'booked' THEN b.fare ELSE 0 END), 0) as revenue
-				FROM {$leads_table} l
-				LEFT JOIN {$bookings_table} b ON b.lead_id = l.id
-				WHERE l.created_at BETWEEN %s AND %s AND l.campaign != ''
-				GROUP BY l.campaign ORDER BY revenue DESC LIMIT 15",
-				$start,
-				$end
-			)
-		);
-
-		// Keyword ROI — leads, bookings, and revenue per keyword (utm_term).
-		$report['keyword_roi'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT l.keyword, COUNT(DISTINCT l.id) as leads,
-					COUNT(DISTINCT CASE WHEN b.status = 'booked' THEN b.id END) as bookings,
-					COALESCE(SUM(CASE WHEN b.status = 'booked' THEN b.fare ELSE 0 END), 0) as revenue
-				FROM {$leads_table} l
-				LEFT JOIN {$bookings_table} b ON b.lead_id = l.id
-				WHERE l.created_at BETWEEN %s AND %s AND l.keyword != ''
-				GROUP BY l.keyword ORDER BY revenue DESC LIMIT 15",
-				$start,
-				$end
-			)
-		);
-
-		// Source revenue — leads, bookings, and revenue per source.
-		$report['source_revenue'] = $this->wpdb->get_results(
-			$this->wpdb->prepare(
-				"SELECT l.lead_source, COUNT(DISTINCT l.id) as leads,
-					COUNT(DISTINCT CASE WHEN b.status = 'booked' THEN b.id END) as bookings,
-					COALESCE(SUM(CASE WHEN b.status = 'booked' THEN b.fare ELSE 0 END), 0) as revenue
-				FROM {$leads_table} l
-				LEFT JOIN {$bookings_table} b ON b.lead_id = l.id
-				WHERE l.created_at BETWEEN %s AND %s AND l.lead_source != ''
-				GROUP BY l.lead_source ORDER BY revenue DESC",
-				$start,
-				$end
-			)
-		);
-
-		// Google Ads conversions — booked leads with a gclid/gbraid/wbraid.
-		$report['google_ads_conversions'] = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COUNT(DISTINCT l.id)
-				FROM {$leads_table} l
-				INNER JOIN {$bookings_table} b ON b.lead_id = l.id AND b.status = 'booked'
-				WHERE l.created_at BETWEEN %s AND %s
-				AND (l.gclid != '' OR l.gbraid != '' OR l.wbraid != '')",
-				$start,
-				$end
-			)
-		);
-
-		// Google Ads revenue.
-		$report['google_ads_revenue'] = (float) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COALESCE(SUM(b.fare), 0)
-				FROM {$leads_table} l
-				INNER JOIN {$bookings_table} b ON b.lead_id = l.id AND b.status = 'booked'
-				WHERE l.created_at BETWEEN %s AND %s
-				AND (l.gclid != '' OR l.gbraid != '' OR l.wbraid != '')",
-				$start,
-				$end
-			)
-		);
-
-		return $report;
-	}
-
-	/**
-	 * Get dashboard stats.
-	 *
-	 * @return array
-	 */
 	public function get_dashboard_stats() {
-		$today_start = current_time( 'Y-m-d 00:00:00' );
-		$today_end   = current_time( 'Y-m-d 23:59:59' );
+		$today = current_time( 'Y-m-d' );
 
-		$stats = array(
-			'today_leads'    => 0,
-			'today_bookings' => 0,
-			'revenue'        => 0,
-			'conversion'     => 0,
-			'avg_fare'       => 0,
-			'repeat_customers' => 0,
+		$today_leads = (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->tables['leads']} WHERE DATE(created_at) = %s", $today
+		) );
+
+		$today_bookings = (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->tables['bookings']} WHERE DATE(created_at) = %s", $today
+		) );
+
+		$revenue = (float) $this->wpdb->get_var(
+			"SELECT COALESCE(SUM(fare),0) FROM {$this->tables['bookings']} WHERE status IN ('booked','completed')"
 		);
 
-		// Today's leads.
-		$stats['today_leads'] = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM {$this->tables['leads']} WHERE created_at BETWEEN %s AND %s",
-				$today_start,
-				$today_end
-			)
+		$total_leads   = (int) $this->wpdb->get_var( "SELECT COUNT(*) FROM {$this->tables['leads']}" );
+		$booked_count  = (int) $this->wpdb->get_var( "SELECT COUNT(*) FROM {$this->tables['leads']} WHERE status = 'booked'" );
+		$conv_pct      = $total_leads > 0 ? round( ( $booked_count / $total_leads ) * 100, 1 ) : 0;
+
+		$avg_fare = (float) $this->wpdb->get_var(
+			"SELECT COALESCE(AVG(fare),0) FROM {$this->tables['bookings']} WHERE status IN ('booked','completed')"
 		);
 
-		// Today's bookings.
-		$stats['today_bookings'] = (int) $this->wpdb->get_var(
-			$this->wpdb->prepare(
-				"SELECT COUNT(*) FROM {$this->tables['bookings']} WHERE created_at BETWEEN %s AND %s AND status = %s",
-				$today_start,
-				$today_end,
-				'booked'
-			)
+		$repeat = (int) $this->wpdb->get_var(
+			"SELECT COUNT(*) FROM (SELECT phone, COUNT(*) c FROM {$this->tables['leads']} WHERE phone != '' GROUP BY phone HAVING c > 1) t"
 		);
 
-		// Revenue (sum of fares for booked).
-		$stats['revenue'] = (float) $this->wpdb->get_var(
-			"SELECT COALESCE(SUM(fare), 0) FROM {$this->tables['bookings']} WHERE status = 'booked'"
+		return array(
+			'today_leads'    => $today_leads,
+			'today_bookings' => $today_bookings,
+			'revenue'        => $revenue,
+			'conversion'     => $conv_pct,
+			'avg_fare'       => $avg_fare,
+			'repeat_customers' => $repeat,
 		);
-
-		// Conversion %.
-		$total_leads    = (int) $this->wpdb->get_var( "SELECT COUNT(*) FROM {$this->tables['leads']}" );
-		$total_bookings = (int) $this->wpdb->get_var( "SELECT COUNT(*) FROM {$this->tables['bookings']} WHERE status = 'booked'" );
-		if ( $total_leads > 0 ) {
-			$stats['conversion'] = round( ( $total_bookings / $total_leads ) * 100, 2 );
-		}
-
-		// Average fare.
-		$stats['avg_fare'] = (float) $this->wpdb->get_var(
-			"SELECT COALESCE(AVG(fare), 0) FROM {$this->tables['bookings']} WHERE status = 'booked'"
-		);
-
-		// Repeat customers (leads with more than one booking).
-		$stats['repeat_customers'] = (int) $this->wpdb->get_var(
-			"SELECT COUNT(*) FROM (SELECT lead_id FROM {$this->tables['bookings']} GROUP BY lead_id HAVING COUNT(*) > 1) AS repeats"
-		);
-
-		return $stats;
 	}
 
-	/**
-	 * Get format array for lead data.
-	 *
-	 * @param array $data Data array.
-	 * @return array
-	 */
+	/* ── Report Data ───────────────────────────────────────── */
+
+	public function get_report_data( $start, $end ) {
+		$lt = $this->tables['leads'];
+		$bt = $this->tables['bookings'];
+
+		$total_leads = (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM $lt WHERE created_at BETWEEN %s AND %s", $start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$total_bookings = (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM $bt WHERE created_at BETWEEN %s AND %s", $start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$revenue = (float) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COALESCE(SUM(b.fare),0) FROM $bt b INNER JOIN $lt l ON b.lead_id = l.id
+			 WHERE b.created_at BETWEEN %s AND %s AND b.status IN ('booked','completed')",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$booked_count = (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM $lt WHERE status = 'booked' AND created_at BETWEEN %s AND %s",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+		$conv_pct = $total_leads > 0 ? round( ( $booked_count / $total_leads ) * 100, 1 ) : 0;
+
+		$avg_fare = (float) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COALESCE(AVG(b.fare),0) FROM $bt b INNER JOIN $lt l ON b.lead_id = l.id
+			 WHERE b.created_at BETWEEN %s AND %s AND b.status IN ('booked','completed')",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$repeat = (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM (SELECT phone, COUNT(*) c FROM $lt
+			 WHERE phone != '' AND created_at BETWEEN %s AND %s GROUP BY phone HAVING c > 1) t",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$top_routes = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT b.route, COUNT(*) as bookings, COALESCE(SUM(b.fare),0) as revenue
+			 FROM $bt b WHERE b.route != '' AND b.created_at BETWEEN %s AND %s
+			 GROUP BY b.route ORDER BY bookings DESC LIMIT 10",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$top_campaigns = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT campaign, COUNT(*) as count FROM $lt
+			 WHERE campaign != '' AND created_at BETWEEN %s AND %s
+			 GROUP BY campaign ORDER BY count DESC LIMIT 10",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$top_landing_pages = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT landing_page, COUNT(*) as count FROM $lt
+			 WHERE landing_page != '' AND created_at BETWEEN %s AND %s
+			 GROUP BY landing_page ORDER BY count DESC LIMIT 10",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$by_source = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT lead_source, COUNT(*) as count FROM $lt
+			 WHERE lead_source != '' AND created_at BETWEEN %s AND %s
+			 GROUP BY lead_source ORDER BY count DESC",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$by_status = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT status, COUNT(*) as count FROM $lt
+			 WHERE created_at BETWEEN %s AND %s GROUP BY status ORDER BY count DESC",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$campaign_roi = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT l.campaign,
+				COUNT(l.id) as leads,
+				COUNT(CASE WHEN l.status='booked' THEN 1 END) as bookings,
+				COALESCE(SUM(CASE WHEN b.status IN ('booked','completed') THEN b.fare ELSE 0 END),0) as revenue
+			 FROM $lt l LEFT JOIN $bt b ON l.id = b.lead_id
+			 WHERE l.campaign != '' AND l.created_at BETWEEN %s AND %s
+			 GROUP BY l.campaign ORDER BY leads DESC LIMIT 15",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+		foreach ( $campaign_roi as &$r ) {
+			$r->conversion_pct = $r->leads > 0 ? round( ( $r->bookings / $r->leads ) * 100, 1 ) : 0;
+		}
+		unset( $r );
+
+		$keyword_roi = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT l.keyword,
+				COUNT(l.id) as leads,
+				COALESCE(SUM(CASE WHEN b.status IN ('booked','completed') THEN b.fare ELSE 0 END),0) as revenue
+			 FROM $lt l LEFT JOIN $bt b ON l.id = b.lead_id
+			 WHERE l.keyword != '' AND l.created_at BETWEEN %s AND %s
+			 GROUP BY l.keyword ORDER BY leads DESC LIMIT 15",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$source_revenue = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT l.lead_source,
+				COALESCE(SUM(CASE WHEN b.status IN ('booked','completed') THEN b.fare ELSE 0 END),0) as revenue
+			 FROM $lt l LEFT JOIN $bt b ON l.id = b.lead_id
+			 WHERE l.lead_source != '' AND l.created_at BETWEEN %s AND %s
+			 GROUP BY l.lead_source ORDER BY revenue DESC",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$google_ads_conversions = (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM $lt WHERE gclid != '' AND created_at BETWEEN %s AND %s",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		$google_ads_revenue = (float) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COALESCE(SUM(CASE WHEN b.status IN ('booked','completed') THEN b.fare ELSE 0 END),0)
+			 FROM $lt l LEFT JOIN $bt b ON l.id = b.lead_id
+			 WHERE l.gclid != '' AND l.created_at BETWEEN %s AND %s",
+			$start . ' 00:00:00', $end . ' 23:59:59'
+		) );
+
+		return array(
+			'total_leads'             => $total_leads,
+			'total_bookings'          => $total_bookings,
+			'revenue'                 => $revenue,
+			'conversion'              => $conv_pct,
+			'avg_fare'                => $avg_fare,
+			'repeat_customers'        => $repeat,
+			'top_routes'              => $top_routes,
+			'top_campaigns'           => $top_campaigns,
+			'top_landing_pages'       => $top_landing_pages,
+			'by_source'               => $by_source,
+			'by_status'               => $by_status,
+			'campaign_roi'            => $campaign_roi,
+			'keyword_roi'             => $keyword_roi,
+			'source_revenue'          => $source_revenue,
+			'google_ads_conversions'  => $google_ads_conversions,
+			'google_ads_revenue'      => $google_ads_revenue,
+		);
+	}
+
+	/* ── Format helpers ────────────────────────────────────── */
+
 	private function get_lead_format( $data ) {
-		$format_map = array(
-			'id'            => '%d',
-			'created_at'    => '%s',
-			'visitor_id'    => '%s',
-			'phone'         => '%s',
-			'name'          => '%s',
-			'email'         => '%s',
-			'status'        => '%s',
-			'lead_source'   => '%s',
-			'medium'        => '%s',
-			'campaign'      => '%s',
-			'ad_group'      => '%s',
-			'keyword'       => '%s',
-			'gclid'         => '%s',
-			'gbraid'        => '%s',
-			'wbraid'        => '%s',
-			'utm_source'   => '%s',
-			'utm_medium'   => '%s',
-			'utm_campaign' => '%s',
-			'utm_term'     => '%s',
-			'utm_content'  => '%s',
-			'landing_page'  => '%s',
-			'booking_route' => '%s',
-			'booking_date'  => '%s',
-			'follow_up_date' => '%s',
-			'remarks'       => '%s',
-			'device'        => '%s',
-			'browser'       => '%s',
-			'ip'            => '%s',
-			'referer'       => '%s',
-			'last_updated'  => '%s',
-		);
+		$int_keys  = array( 'id' );
+		$float_keys = array();
 		$format = array();
-		foreach ( $data as $key => $value ) {
-			if ( isset( $format_map[ $key ] ) ) {
-				$format[] = $format_map[ $key ];
+		foreach ( $data as $k => $v ) {
+			if ( in_array( $k, $int_keys, true ) ) {
+				$format[] = '%d';
+			} elseif ( in_array( $k, $float_keys, true ) ) {
+				$format[] = '%f';
+			} else {
+				$format[] = '%s';
 			}
 		}
 		return $format;
 	}
 
-	/**
-	 * Get format array for tracking data.
-	 *
-	 * @param array $data Data array.
-	 * @return array
-	 */
 	private function get_tracking_format( $data ) {
-		$format_map = array(
-			'id'           => '%d',
-			'lead_id'      => '%d',
-			'visitor_id'   => '%s',
-			'visit_time'   => '%s',
-			'gclid'        => '%s',
-			'gbraid'       => '%s',
-			'wbraid'       => '%s',
-			'utm_source'   => '%s',
-			'utm_medium'   => '%s',
-			'utm_campaign' => '%s',
-			'utm_term'     => '%s',
-			'utm_content'  => '%s',
-			'landing_page' => '%s',
-			'referer'      => '%s',
-			'device'       => '%s',
-			'browser'      => '%s',
-			'ip'           => '%s',
-		);
+		$int_keys = array( 'lead_id' );
 		$format = array();
-		foreach ( $data as $key => $value ) {
-			if ( isset( $format_map[ $key ] ) ) {
-				$format[] = $format_map[ $key ];
-			}
+		foreach ( $data as $k => $v ) {
+			$format[] = in_array( $k, $int_keys, true ) ? '%d' : '%s';
 		}
 		return $format;
 	}
 
-	/**
-	 * Get format array for booking data.
-	 *
-	 * @param array $data Data array.
-	 * @return array
-	 */
 	private function get_booking_format( $data ) {
-		$format_map = array(
-			'id'           => '%d',
-			'lead_id'      => '%d',
-			'booking_type' => '%s',
-			'route'        => '%s',
-			'fare'         => '%f',
-			'booking_date' => '%s',
-			'driver'       => '%s',
-			'status'       => '%s',
-			'created_at'   => '%s',
-			'updated_at'   => '%s',
-		);
+		$int_keys   = array( 'lead_id' );
+		$float_keys = array( 'fare' );
 		$format = array();
-		foreach ( $data as $key => $value ) {
-			if ( isset( $format_map[ $key ] ) ) {
-				$format[] = $format_map[ $key ];
+		foreach ( $data as $k => $v ) {
+			if ( in_array( $k, $int_keys, true ) ) {
+				$format[] = '%d';
+			} elseif ( in_array( $k, $float_keys, true ) ) {
+				$format[] = '%f';
+			} else {
+				$format[] = '%s';
 			}
 		}
 		return $format;
