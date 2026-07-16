@@ -1,7 +1,6 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-function smart_lead_crm()              { return Smart_Lead_CRM::instance(); }
 function slcrm_db()                    { return smart_lead_crm()->db; }
 function slcrm_helper()                { return smart_lead_crm()->helper; }
 function slcrm_get_setting( $k, $d = null ) { return smart_lead_crm()->settings->get( $k, $d ); }
