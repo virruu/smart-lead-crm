@@ -75,10 +75,19 @@ class Smart_Lead_CRM_Tracker {
 	public function maybe_enqueue_tracker_script() {
 		if ( is_admin() ) return;
 		wp_enqueue_script( 'slcrm-tracker', SMART_LEAD_CRM_PLUGIN_URL . 'assets/js/tracker.js', array(), SMART_LEAD_CRM_VERSION, true );
+
+		$wa_number = preg_replace( '/[^0-9]/', '', slcrm_get_setting( 'whatsapp_business_number', '' ) );
 		wp_localize_script( 'slcrm-tracker', 'slcrmTracker', array(
-			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-			'nonce'   => wp_create_nonce( 'slcrm_public_nonce' ),
+			'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+			'nonce'          => wp_create_nonce( 'slcrm_public_nonce' ),
+			'businessNumber' => $wa_number,
 		) );
+
+		if ( $wa_number ) {
+			add_action( 'wp_head', function() use ( $wa_number ) {
+				echo '<meta name="slcrm-wa-number" content="' . esc_attr( $wa_number ) . '" />' . "\n";
+			}, 1 );
+		}
 	}
 
 	public static function detect_device( $ua ) {
