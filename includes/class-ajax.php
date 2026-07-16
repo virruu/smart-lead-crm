@@ -55,7 +55,7 @@ class Smart_Lead_CRM_Ajax {
 		}
 
 		$lead_data = array(
-			'name'         => $phone ?: 'Visitor',
+			'name'         => $phone ? 'Visitor (' . $phone . ')' : 'Website Visitor',
 			'phone'        => $phone ?: '',
 			'status'       => 'new_lead',
 			'lead_source'  => $attr['source'],
