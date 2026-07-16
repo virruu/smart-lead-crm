@@ -131,10 +131,16 @@ $mm = $mode_meta[ $mode ] ?? $mode_meta['app_mode'];
 						<div style="flex:1;min-width:0;">
 							<div style="font-size:14px;font-weight:600;color:var(--gray-800);display:flex;align-items:center;gap:6px;">
 								<span class="slcrm-lead-id">#<?php echo esc_html( $lead->id ); ?></span>
-								<?php echo esc_html( $lead->name ?: '—' ); ?>
+								<?php echo esc_html( $lead->name ?: ( $lead->phone ?: 'Website Visitor' ) ); ?>
 							</div>
 							<div style="font-size:12px;color:var(--gray-400);margin-top:2px;">
-								<?php echo esc_html( $lead->remarks ? wp_trim_words( $lead->remarks, 7, '…' ) : $lead->phone ); ?>
+								<?php if ( $lead->remarks ) : ?>
+									<?php echo esc_html( wp_trim_words( $lead->remarks, 7, '…' ) ); ?>
+								<?php elseif ( $lead->phone ) : ?>
+									<span class="dashicons dashicons-phone" style="font-size:11px;width:11px;height:11px;vertical-align:middle;"></span> <?php echo esc_html( $lead->phone ); ?>
+								<?php else : ?>
+									<?php esc_html_e( 'Waiting for WhatsApp message…', 'smart-lead-crm' ); ?>
+								<?php endif; ?>
 							</div>
 						</div>
 						<div style="text-align:right;flex-shrink:0;">
