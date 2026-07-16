@@ -67,12 +67,16 @@ if ( 'view' === $action ) {
 						<div class="slcrm-lead-header-info">
 							<h2>
 								<span class="slcrm-lead-id">Lead #<?php echo esc_html( $lead->id ); ?></span>
-								<?php echo esc_html( $lead->name ?: '—' ); ?>
+								<?php echo esc_html( $lead->name ?: 'Website Visitor' ); ?>
 								<span class="slcrm-status-badge slcrm-status-<?php echo esc_attr( $lead->status ); ?>"><?php echo esc_html( $helper->get_status_label( $lead->status ) ); ?></span>
 							</h2>
 							<div class="slcrm-lead-phone">
-								<span class="dashicons dashicons-phone" style="font-size:14px;width:14px;height:14px;"></span>
-								<span><?php echo esc_html( $lead->phone ); ?></span>
+								<?php if ( $lead->phone ) : ?>
+									<span class="dashicons dashicons-phone" style="font-size:14px;width:14px;height:14px;"></span>
+									<span><?php echo esc_html( $lead->phone ); ?></span>
+								<?php else : ?>
+									<span style="color:var(--gray-400);font-style:italic;font-size:13px;"><?php esc_html_e( 'Phone number will appear when customer messages you on WhatsApp', 'smart-lead-crm' ); ?></span>
+								<?php endif; ?>
 								<?php if ( $wa_no ) : ?>
 									<a href="https://wa.me/<?php echo esc_attr( $wa_no ); ?>" target="_blank" class="slcrm-wa-link">
 										<span class="dashicons dashicons-whatsapp"></span> <?php esc_html_e( 'Chat on WhatsApp', 'smart-lead-crm' ); ?>
@@ -302,8 +306,8 @@ $total_pages = (int) ceil( $total / $per_page );
 			<?php foreach ( $leads as $lead ) : $wa_no = preg_replace('/[^0-9]/','',$lead->phone); ?>
 			<tr>
 				<td><span class="slcrm-lead-id-cell">#<?php echo esc_html( $lead->id ); ?></span></td>
-				<td><strong style="color:var(--gray-800);"><?php echo esc_html( $lead->name ?: '—' ); ?></strong></td>
-				<td><a href="https://wa.me/<?php echo esc_attr( $wa_no ); ?>" target="_blank" class="slcrm-wa-link"><span class="dashicons dashicons-whatsapp"></span> <?php echo esc_html( $lead->phone ); ?></a></td>
+				<td><strong style="color:var(--gray-800);"><?php echo esc_html( $lead->name ?: 'Website Visitor' ); ?></strong></td>
+				<td><?php if ( $wa_no ) : ?><a href="https://wa.me/<?php echo esc_attr( $wa_no ); ?>" target="_blank" class="slcrm-wa-link"><span class="dashicons dashicons-whatsapp"></span> <?php echo esc_html( $lead->phone ); ?></a><?php else : ?><span style="color:var(--gray-300);font-style:italic;font-size:12px;"><?php esc_html_e( 'No phone yet', 'smart-lead-crm' ); ?></span><?php endif; ?></td>
 				<td><span class="slcrm-status-badge slcrm-status-<?php echo esc_attr( $lead->status ); ?>"><?php echo esc_html( $helper->get_status_label( $lead->status ) ); ?></span></td>
 				<td><span class="slcrm-source-badge slcrm-source-<?php echo esc_attr( $lead->lead_source ); ?>"><?php echo esc_html( $helper->get_source_label( $lead->lead_source ) ); ?></span></td>
 				<td style="color:var(--gray-400);font-size:12px;font-style:italic;"><?php echo esc_html( $lead->remarks ? wp_trim_words( $lead->remarks, 8, '…' ) : '—' ); ?></td>
