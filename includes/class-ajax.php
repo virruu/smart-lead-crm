@@ -47,6 +47,14 @@ class Smart_Lead_CRM_Ajax {
 				$update['ad_group']    = $attr['ad_group'];
 				$update['keyword']     = $attr['keyword'];
 			}
+			$click_label = array(
+				'whatsapp' => 'Auto-created: WhatsApp click',
+				'phone'    => 'Auto-created: Phone call click',
+			);
+			$action_remark = $click_label[ $action_type ] ?? '';
+			if ( $action_remark && empty( $existing->remarks ) ) {
+				$update['remarks'] = $action_remark;
+			}
 			$update['last_updated'] = current_time( 'mysql' );
 			$db->update_lead( $existing->id, $update );
 
@@ -54,10 +62,17 @@ class Smart_Lead_CRM_Ajax {
 			wp_send_json_success( array( 'lead_id' => $existing->id, 'action' => 'updated' ) );
 		}
 
+		$click_label = array(
+			'whatsapp' => 'Auto-created: WhatsApp click',
+			'phone'    => 'Auto-created: Phone call click',
+		);
+		$remarks = $click_label[ $action_type ] ?? 'Auto-created: website visit';
+
 		$lead_data = array(
-			'name'         => $phone ? 'Visitor (' . $phone . ')' : 'Website Visitor',
+			'name'         => 'Website Visitor',
 			'phone'        => $phone ?: '',
 			'status'       => 'new_lead',
+			'remarks'      => $remarks,
 			'lead_source'  => $attr['source'],
 			'medium'       => $attr['medium'],
 			'campaign'     => $attr['campaign'],
