@@ -66,13 +66,29 @@
         return href && href.indexOf('tel:') === 0;
     }
 
+    function getBusinessNumber() {
+        var stored = document.querySelector('meta[name="slcrm-wa-number"]');
+        if (stored) return stored.getAttribute('content').replace(/[^0-9]/g, '');
+        if (typeof slcrmTracker !== 'undefined' && slcrmTracker.businessNumber) return slcrmTracker.businessNumber;
+        return '';
+    }
+
+    var businessNumber = '';
+
     function extractPhoneFromWhatsApp(href) {
         var match = href.match(/(?:wa\.me\/|api\.whatsapp\.com\/send\?phone=|whatsapp:\/\/send\?phone=)([0-9]+)/);
-        return match ? match[1] : '';
+        if (!match) return '';
+        var phone = match[1];
+        if (businessNumber && phone === businessNumber) return '';
+        if (phone.length < 8) return '';
+        return phone;
     }
 
     function extractPhoneFromTel(href) {
-        return href.replace(/[^0-9+]/g, '');
+        var phone = href.replace(/[^0-9+]/g, '').replace(/^\+/, '');
+        if (businessNumber && phone === businessNumber) return '';
+        if (phone.length < 8) return '';
+        return phone;
     }
 
     var leadFired = false;
@@ -111,6 +127,7 @@
     }
 
     function attachLinkListeners() {
+        businessNumber = getBusinessNumber();
         var links = document.querySelectorAll('a[href]');
         for (var i = 0; i < links.length; i++) {
             (function (link) {
