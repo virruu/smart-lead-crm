@@ -25,6 +25,14 @@ class Smart_Lead_CRM_Ajax {
 
 		if ( ! $visitor_id ) wp_send_json_error( 'Missing visitor_id' );
 
+		// Reject the business's own number — it appears in wa.me links that visitors click.
+		if ( $phone ) {
+			$business_number = preg_replace( '/[^0-9]/', '', slcrm_get_setting( 'whatsapp_business_number', '' ) );
+			if ( $business_number && preg_replace( '/[^0-9]/', '', $phone ) === $business_number ) {
+				$phone = '';
+			}
+		}
+
 		$db         = slcrm_db();
 		$helper     = slcrm_helper();
 		$attribution = smart_lead_crm()->attribution;
