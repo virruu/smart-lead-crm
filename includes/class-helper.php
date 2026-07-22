@@ -34,9 +34,54 @@ class Smart_Lead_CRM_Helper {
 		'tour'       => 'Tour',
 	);
 
+	public $business_types = array(
+		'taxi'         => 'Taxi / Cab / Car Rental',
+		'tours'        => 'Tours / Travel / Tourism',
+		'realestate'   => 'Real Estate / Property',
+		'clinic'       => 'Clinic / Healthcare',
+		'restaurant'   => 'Restaurant / Food',
+		'education'    => 'Education / Coaching',
+		'salon'        => 'Salon / Spa / Beauty',
+		'legal'        => 'Legal / Consulting',
+		'ecommerce'    => 'E-commerce / Retail',
+		'services'     => 'Professional Services',
+		'other'        => 'Other',
+	);
+
+	public $conversion_presets = array(
+		array( 'crm_action' => 'phone',        'label' => 'Phone Call',          'ga4_event' => 'phone_call',          'default_enabled' => true,  'category' => 'interaction' ),
+		array( 'crm_action' => 'whatsapp',    'label' => 'WhatsApp Click',      'ga4_event' => 'whatsapp_click',      'default_enabled' => true,  'category' => 'interaction' ),
+		array( 'crm_action' => 'email',       'label' => 'Email Click',         'ga4_event' => 'email_click',         'default_enabled' => false, 'category' => 'interaction' ),
+		array( 'crm_action' => 'sms',         'label' => 'SMS Click',           'ga4_event' => 'sms_click',           'default_enabled' => false, 'category' => 'interaction' ),
+		array( 'crm_action' => 'directions',  'label' => 'Directions Click',    'ga4_event' => 'directions_click',    'default_enabled' => false, 'category' => 'interaction' ),
+		array( 'crm_action' => 'contact_form','label' => 'Contact Form',         'ga4_event' => 'contact_form_submit', 'default_enabled' => true,  'category' => 'form' ),
+		array( 'crm_action' => 'booking',     'label' => 'Booking Form',         'ga4_event' => 'booking_submit',      'default_enabled' => false, 'category' => 'form' ),
+		array( 'crm_action' => 'tour',        'label' => 'Tour Enquiry',         'ga4_event' => 'tour_enquiry_submit',  'default_enabled' => false, 'category' => 'form' ),
+		array( 'crm_action' => 'quote',       'label' => 'Quote Request',        'ga4_event' => 'quote_request_submit', 'default_enabled' => false, 'category' => 'form' ),
+		array( 'crm_action' => 'newsletter',  'label' => 'Newsletter Signup',   'ga4_event' => 'newsletter_signup',   'default_enabled' => false, 'category' => 'form' ),
+	);
+
 	public function get_lead_statuses()  { return $this->lead_statuses; }
 	public function get_lead_sources()   { return $this->lead_sources; }
 	public function get_booking_types()  { return $this->booking_types; }
+	public function get_business_types() { return $this->business_types; }
+	public function get_conversion_presets() { return $this->conversion_presets; }
+
+	public function get_business_type_label( $k ) {
+		return $this->business_types[ $k ] ?? ucfirst( $k );
+	}
+
+	public function get_conversion_label( $crm_action ) {
+		$conversions = smart_lead_crm()->db->get_conversions();
+		foreach ( $conversions as $c ) {
+			if ( $c->crm_action === $crm_action ) return $c->label;
+		}
+		$presets = $this->conversion_presets;
+		foreach ( $presets as $p ) {
+			if ( $p['crm_action'] === $crm_action ) return $p['label'];
+		}
+		return ucfirst( $crm_action );
+	}
 
 	public function get_status_label( $k ) {
 		return $this->lead_statuses[ $k ] ?? ucfirst( $k );
