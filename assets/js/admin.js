@@ -173,4 +173,94 @@
         if (e.which === 13) $(this).closest('form').submit();
     });
 
+    /* ── Conversion management ────────────────────────────── */
+
+    function saveConversion($row) {
+        var id = $row.data('id') || 0;
+        $.post(ajaxUrl, {
+            action: 'slcrm_save_conversion', nonce: nonce, id: id,
+            crm_action: $row.find('.slcrm-conv-action').val(),
+            label: $row.find('.slcrm-conv-label').val(),
+            google_ads_label: $row.find('.slcrm-conv-ads').val(),
+            ga4_event: $row.find('.slcrm-conv-ga4').val(),
+            enabled: $row.find('.slcrm-conv-enabled').is(':checked') ? 1 : 0,
+            category: $row.find('.slcrm-conv-category').val()
+        }).done(function (res) {
+            if (res.success) {
+                $row.data('id', res.data.id);
+                var $btn = $row.find('.slcrm-conv-save');
+                var orig = $btn.text();
+                $btn.text('Saved!').addClass('slcrm-btn-success');
+                setTimeout(function () { $btn.text(orig).removeClass('slcrm-btn-success'); }, 1500);
+            }
+        });
+    }
+
+    $(document).on('click', '.slcrm-conv-save', function (e) {
+        e.preventDefault();
+        saveConversion($(this).closest('tr'));
+    });
+
+    $(document).on('click', '#slcrm-add-conversion', function (e) {
+        e.preventDefault();
+        var $body = $('#slcrm-conversions-body');
+        var $row = $(
+            '<tr data-id="0">' +
+            '<td><input type="checkbox" class="slcrm-conv-enabled" checked /></td>' +
+            '<td><input type="text" class="slcrm-conv-label" placeholder="e.g. Quote Request" /></td>' +
+            '<td><input type="text" class="slcrm-conv-action" placeholder="e.g. quote" /></td>' +
+            '<td><input type="text" class="slcrm-conv-ads" placeholder="e.g. AbcD1234" /></td>' +
+            '<td><input type="text" class="slcrm-conv-ga4" placeholder="e.g. quote_request" /></td>' +
+            '<td><select class="slcrm-conv-category"><option value="interaction">Interaction</option><option value="form">Form</option><option value="custom">Custom</option></select></td>' +
+            '<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-conv-save">Save</button></td>' +
+            '</tr>'
+        );
+        $body.append($row);
+        $row.find('input:first').focus();
+    });
+
+    /* ── Form tracking management ──────────────────────────── */
+
+    function saveFormTracking($row) {
+        var id = $row.data('id') || 0;
+        $.post(ajaxUrl, {
+            action: 'slcrm_save_form_tracking', nonce: nonce, id: id,
+            form_name: $row.find('.slcrm-form-name').val(),
+            selector: $row.find('.slcrm-form-selector').val(),
+            event_type: $row.find('.slcrm-form-event').val(),
+            crm_action: $row.find('.slcrm-form-action').val(),
+            enabled: $row.find('.slcrm-form-enabled').is(':checked') ? 1 : 0
+        }).done(function (res) {
+            if (res.success) {
+                $row.data('id', res.data.id);
+                var $btn = $row.find('.slcrm-form-save');
+                var orig = $btn.text();
+                $btn.text('Saved!').addClass('slcrm-btn-success');
+                setTimeout(function () { $btn.text(orig).removeClass('slcrm-btn-success'); }, 1500);
+            }
+        });
+    }
+
+    $(document).on('click', '.slcrm-form-save', function (e) {
+        e.preventDefault();
+        saveFormTracking($(this).closest('tr'));
+    });
+
+    $(document).on('click', '#slcrm-add-form', function (e) {
+        e.preventDefault();
+        var $body = $('#slcrm-forms-body');
+        var $row = $(
+            '<tr data-id="0">' +
+            '<td><input type="checkbox" class="slcrm-form-enabled" checked /></td>' +
+            '<td><input type="text" class="slcrm-form-name" placeholder="e.g. Tour Enquiry" /></td>' +
+            '<td><input type="text" class="slcrm-form-selector" placeholder="#tour-form" /></td>' +
+            '<td><select class="slcrm-form-event"><option value="submit">submit</option><option value="click">click</option><option value="change">change</option></select></td>' +
+            '<td><input type="text" class="slcrm-form-action" placeholder="e.g. tour" /></td>' +
+            '<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-form-save">Save</button></td>' +
+            '</tr>'
+        );
+        $body.append($row);
+        $row.find('input:first').focus();
+    });
+
 }(jQuery));
