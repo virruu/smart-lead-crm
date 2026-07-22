@@ -152,13 +152,66 @@ class Smart_Lead_CRM_Installer {
 			KEY conversation_id (conversation_id)
 		) $charset;";
 		dbDelta( $sql_msgs );
+
+		$conversions = $wpdb->prefix . 'slcrm_conversions';
+		$sql_conv = "CREATE TABLE $conversions (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			crm_action VARCHAR(50) NOT NULL DEFAULT '',
+			label VARCHAR(100) NOT NULL DEFAULT '',
+			google_ads_label VARCHAR(100) NOT NULL DEFAULT '',
+			ga4_event VARCHAR(100) NOT NULL DEFAULT '',
+			enabled TINYINT(1) NOT NULL DEFAULT 1,
+			category VARCHAR(30) NOT NULL DEFAULT 'interaction',
+			sort_order INT(11) NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY crm_action (crm_action)
+		) $charset;";
+		dbDelta( $sql_conv );
+
+		$forms = $wpdb->prefix . 'slcrm_form_tracking';
+		$sql_forms = "CREATE TABLE $forms (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			form_name VARCHAR(100) NOT NULL DEFAULT '',
+			selector VARCHAR(255) NOT NULL DEFAULT '',
+			event_type VARCHAR(30) NOT NULL DEFAULT 'submit',
+			crm_action VARCHAR(50) NOT NULL DEFAULT '',
+			enabled TINYINT(1) NOT NULL DEFAULT 1,
+			sort_order INT(11) NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id)
+		) $charset;";
+		dbDelta( $sql_forms );
 	}
 
 	public function maybe_run_migrations() {
 		$stored = get_option( 'smart_lead_crm_db_version' );
 		if ( version_compare( $stored, SMART_LEAD_CRM_DB_VERSION, '<' ) ) {
 			$this->create_tables();
+			$this->seed_default_conversions();
 			update_option( 'smart_lead_crm_db_version', SMART_LEAD_CRM_DB_VERSION );
+		}
+	}
+
+	public function seed_default_conversions() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'slcrm_conversions';
+		$existing = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table" );
+		if ( $existing > 0 ) return;
+
+		$presets = smart_lead_crm()->helper->get_conversion_presets();
+		$order = 0;
+		foreach ( $presets as $p ) {
+			$wpdb->insert( $table, array(
+				'crm_action'        => $p['crm_action'],
+				'label'              => $p['label'],
+				'google_ads_label'   => '',
+				'ga4_event'          => $p['ga4_event'],
+				'enabled'            => $p['default_enabled'] ? 1 : 0,
+				'category'           => $p['category'],
+				'sort_order'         => $order++,
+				'created_at'         => current_time( 'mysql' ),
+			) );
 		}
 	}
 
