@@ -41,11 +41,13 @@
             var val = params.get(captureKeys[i]);
             if (val) setCookie('slcrm_' + captureKeys[i], val, 90);
         }
-        // First-visit cookies
         if (!getCookie('slcrm_landing_page')) setCookie('slcrm_landing_page', window.location.href, 90);
-        if (!getCookie('slcrm_referer')) setCookie('slcrm_referer', document.referrer, 90);
-
-        // Device + browser
+        if (!getCookie('slcrm_referer')) {
+            var ref = document.referrer;
+            setCookie('slcrm_referer', ref, 90);
+            var kw = extractOrganicKeyword(ref);
+            if (kw) setCookie('slcrm_organic_keyword', kw, 90);
+        }
         if (!getCookie('slcrm_device')) {
             var ua = navigator.userAgent;
             var device = /tablet|ipad|playbook|silk/i.test(ua) ? 'Tablet' : /mobile|android|iphone|ipod|blackberry|opera mini/i.test(ua) ? 'Mobile' : 'Desktop';
@@ -58,12 +60,39 @@
         }
     }
 
+    function extractOrganicKeyword(referrer) {
+        if (!referrer) return '';
+        try {
+            var url = new URL(referrer);
+            var params = new URLSearchParams(url.search);
+            var keys = ['q', 'query', 'p', 'wd', 'text', 'search'];
+            for (var i = 0; i < keys.length; i++) {
+                var val = params.get(keys[i]);
+                if (val) return val;
+            }
+        } catch (e) {}
+        return '';
+    }
+
     function isWhatsAppLink(href) {
         return href && (href.indexOf('wa.me') > -1 || href.indexOf('api.whatsapp.com') > -1 || href.indexOf('whatsapp://') > -1);
     }
 
     function isTelLink(href) {
         return href && href.indexOf('tel:') === 0;
+    }
+
+    function isMailtoLink(href) {
+        return href && href.indexOf('mailto:') === 0;
+    }
+
+    function isSmsLink(href) {
+        return href && (href.indexOf('sms:') === 0 || href.indexOf('smsto:') === 0);
+    }
+
+    function isDirectionsLink(href) {
+        if (!href) return false;
+        return href.indexOf('maps.google.com') > -1 || href.indexOf('maps.apple.com') > -1 || href.indexOf('openstreetmap.org') > -1;
     }
 
     function getBusinessNumber() {
@@ -91,9 +120,65 @@
         return phone;
     }
 
+    function extractEmailFromMailto(href) {
+        var match = href.match(/mailto:([^?]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
+
+    function extractPhoneFromSms(href) {
+        var phone = href.replace(/[^0-9+]/g, '').replace(/^\+/, '');
+        if (businessNumber && phone === businessNumber) return '';
+        if (phone.length < 8) return '';
+        return phone;
+    }
+
     var leadFired = false;
 
-    function createLead(action, phone) {
+    function getConversionConfig(action) {
+        if (typeof slcrmTracker === 'undefined' || !slcrmTracker.conversions) return null;
+        for (var i = 0; i < slcrmTracker.conversions.length; i++) {
+            if (slcrmTracker.conversions[i].crm_action === action) return slcrmTracker.conversions[i];
+        }
+        return null;
+    }
+
+    function fireConversion(action) {
+        var conv = getConversionConfig(action);
+        if (!conv) return;
+        if (typeof gtag === 'undefined') return;
+
+        if (slcrmTracker.adsId && conv.ads_label) {
+            gtag('event', 'conversion', { send_to: slcrmTracker.adsId + '/' + conv.ads_label });
+        }
+        if (slcrmTracker.ga4Id && conv.ga4_event) {
+            gtag('event', conv.ga4_event, { send_to: slcrmTracker.ga4Id });
+        }
+    }
+
+    function extractFormData(form) {
+        var data = {};
+        if (!form) return data;
+        var fields = form.querySelectorAll('input, textarea, select');
+        for (var i = 0; i < fields.length; i++) {
+            var field = fields[i];
+            var name = (field.name || field.id || '').toLowerCase();
+            var type = (field.type || '').toLowerCase();
+            var value = field.value || '';
+            if (!name || type === 'hidden' || type === 'submit' || type === 'button') continue;
+            if (name.indexOf('name') > -1 || name.indexOf('full') > -1 || name.indexOf('customer') > -1) {
+                if (!data.name) data.name = value;
+            }
+            if (name.indexOf('email') > -1 || name.indexOf('mail') > -1) {
+                if (!data.email) data.email = value;
+            }
+            if (name.indexOf('phone') > -1 || name.indexOf('mobile') > -1 || name.indexOf('tel') > -1 || name.indexOf('contact') > -1) {
+                if (!data.phone) data.phone = value;
+            }
+        }
+        return data;
+    }
+
+    function createLead(action, phone, extraData) {
         if (leadFired) return;
         leadFired = true;
 
@@ -103,9 +188,14 @@
         data.append('visitor_id', ensureVisitorId());
         data.append('lead_action', action);
         if (phone) data.append('phone', phone);
+        if (extraData) {
+            if (extraData.name) data.append('name', extraData.name);
+            if (extraData.email) data.append('email', extraData.email);
+            if (extraData.form_name) data.append('form_name', extraData.form_name);
+            if (extraData.phone) data.append('phone', extraData.phone);
+        }
 
-        // Collect all cookies
-        var cookieKeys = ['gclid', 'gbraid', 'wbraid', 'utm_source', 'utm_campaign', 'utm_medium', 'utm_term', 'utm_content', 'landing_page', 'referer', 'device', 'browser'];
+        var cookieKeys = ['gclid', 'gbraid', 'wbraid', 'utm_source', 'utm_campaign', 'utm_medium', 'utm_term', 'utm_content', 'landing_page', 'referer', 'device', 'browser', 'organic_keyword'];
         for (var i = 0; i < cookieKeys.length; i++) {
             var val = getCookie('slcrm_' + cookieKeys[i]);
             if (val) data.append(cookieKeys[i], val);
@@ -114,7 +204,6 @@
         var url = (typeof slcrmTracker !== 'undefined') ? slcrmTracker.ajaxUrl : '/wp-admin/admin-ajax.php';
         var payload = data.toString();
 
-        // Use sendBeacon for unload-safe delivery, fall back to sync XHR
         if (navigator.sendBeacon) {
             var blob = new Blob([payload], { type: 'application/x-www-form-urlencoded' });
             navigator.sendBeacon(url, blob);
@@ -124,6 +213,8 @@
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             xhr.send(payload);
         }
+
+        fireConversion(action);
     }
 
     function attachLinkListeners() {
@@ -131,15 +222,42 @@
         var links = document.querySelectorAll('a[href]');
         for (var i = 0; i < links.length; i++) {
             (function (link) {
+                if (link.dataset.slcrmBound) return;
+                link.dataset.slcrmBound = '1';
                 link.addEventListener('click', function () {
                     var href = link.getAttribute('href');
                     if (isWhatsAppLink(href)) {
                         createLead('whatsapp', extractPhoneFromWhatsApp(href));
                     } else if (isTelLink(href)) {
                         createLead('phone', extractPhoneFromTel(href));
+                    } else if (isMailtoLink(href)) {
+                        createLead('email', '', { email: extractEmailFromMailto(href) });
+                    } else if (isSmsLink(href)) {
+                        createLead('sms', extractPhoneFromSms(href));
+                    } else if (isDirectionsLink(href)) {
+                        createLead('directions');
                     }
                 }, { once: true });
             })(links[i]);
+        }
+    }
+
+    function attachFormListeners() {
+        if (typeof slcrmTracker === 'undefined' || !slcrmTracker.forms) return;
+        var forms = slcrmTracker.forms;
+        for (var i = 0; i < forms.length; i++) {
+            (function (config) {
+                var el = document.querySelector(config.selector);
+                if (!el || el.dataset.slcrmFormBound) return;
+                el.dataset.slcrmFormBound = '1';
+
+                var eventType = config.event_type || 'submit';
+                el.addEventListener(eventType, function (e) {
+                    var formData = extractFormData(eventType === 'submit' ? el : null);
+                    formData.form_name = config.form_name;
+                    createLead(config.crm_action, formData.phone || '', formData);
+                }, { once: true });
+            })(forms[i]);
         }
     }
 
@@ -147,13 +265,14 @@
         captureUrlParams();
         ensureVisitorId();
         attachLinkListeners();
+        attachFormListeners();
 
-        // Watch for dynamically added links
         if (window.MutationObserver) {
             var observer = new MutationObserver(function (mutations) {
                 for (var i = 0; i < mutations.length; i++) {
                     if (mutations[i].addedNodes.length) {
                         attachLinkListeners();
+                        attachFormListeners();
                         break;
                     }
                 }
