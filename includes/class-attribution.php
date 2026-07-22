@@ -19,12 +19,13 @@ class Smart_Lead_CRM_Attribution {
 		$utm_term  = $signals['utm_term'] ?? '';
 		$referer   = $signals['referer']   ?? '';
 		$action    = $signals['lead_action'] ?? '';
+		$organic_kw = $signals['organic_keyword'] ?? '';
 
 		$source = 'direct';
 		$medium = '';
 		$campaign = $utm_camp;
 		$ad_group = '';
-		$keyword = $utm_term;
+		$keyword = $utm_term ?: $organic_kw;
 
 		// 1. Google Ads
 		if ( $gclid || $gbraid || $wbraid ) {
@@ -53,6 +54,9 @@ class Smart_Lead_CRM_Attribution {
 		// 4. Organic search
 		elseif ( $this->matches_search_engine( $referer ) ) {
 			$source = 'organic'; $medium = 'organic';
+			if ( $organic_kw ) {
+				$keyword = $organic_kw;
+			}
 		}
 		// 5. Facebook
 		elseif ( $this->matches_any( $referer, array( 'facebook.com', 'm.facebook.com', 'fb.com', 'l.facebook.com' ) ) ) {
@@ -100,6 +104,22 @@ class Smart_Lead_CRM_Attribution {
 	private function matches_search_engine( $referer ) {
 		$engines = array( 'google.', 'bing.com', 'yahoo.com', 'duckduckgo.com', 'yandex.', 'baidu.com', 'ask.com', 'aol.com' );
 		return $this->matches_any( $referer, $engines );
+	}
+
+	public function extract_organic_keyword( $referer ) {
+		if ( empty( $referer ) ) return '';
+		$host = wp_parse_url( $referer, PHP_URL_HOST );
+		$query = wp_parse_url( $referer, PHP_URL_QUERY );
+		if ( ! $query ) return '';
+		parse_str( $query, $params );
+
+		$keys = array( 'q', 'query', 'p', 'wd', 'text', 'search' );
+		foreach ( $keys as $k ) {
+			if ( ! empty( $params[ $k ] ) ) {
+				return sanitize_text_field( $params[ $k ] );
+			}
+		}
+		return '';
 	}
 
 	private function is_internal_referer( $referer ) {
