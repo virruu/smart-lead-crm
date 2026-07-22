@@ -16,6 +16,8 @@ class Smart_Lead_CRM_DB {
 			'notes'         => $wpdb->prefix . 'slcrm_notes',
 			'conversations' => $wpdb->prefix . 'slcrm_conversations',
 			'messages'      => $wpdb->prefix . 'slcrm_messages',
+			'conversions'   => $wpdb->prefix . 'slcrm_conversions',
+			'forms'         => $wpdb->prefix . 'slcrm_form_tracking',
 		);
 	}
 
@@ -147,6 +149,77 @@ class Smart_Lead_CRM_DB {
 		return $this->wpdb->get_row( $this->wpdb->prepare(
 			"SELECT * FROM {$this->tables['leads']} WHERE visitor_id = %s ORDER BY created_at DESC LIMIT 1", $visitor_id
 		) );
+	}
+
+	public function get_lead_by_phone( $phone ) {
+		global $wpdb;
+		$phone = preg_replace( '/[^0-9]/', '', $phone );
+		if ( strlen( $phone ) < 8 ) return null;
+		return $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']} WHERE REPLACE(REPLACE(phone,' ',''),'+','') = %s ORDER BY id DESC LIMIT 1",
+			$phone
+		) );
+	}
+
+	/* ── Conversions ────────────────────────────────────────── */
+
+	public function get_conversions() {
+		global $wpdb;
+		return $wpdb->get_results( "SELECT * FROM {$this->tables['conversions']} ORDER BY sort_order ASC, id ASC" );
+	}
+
+	public function get_enabled_conversions() {
+		global $wpdb;
+		return $wpdb->get_results( "SELECT * FROM {$this->tables['conversions']} WHERE enabled = 1 ORDER BY sort_order ASC, id ASC" );
+	}
+
+	public function get_conversion( $id ) {
+		global $wpdb;
+		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->tables['conversions']} WHERE id = %d", $id ) );
+	}
+
+	public function insert_conversion( $data ) {
+		global $wpdb;
+		$wpdb->insert( $this->tables['conversions'], $data );
+		return (int) $wpdb->insert_id;
+	}
+
+	public function update_conversion( $id, $data ) {
+		global $wpdb;
+		return $wpdb->update( $this->tables['conversions'], $data, array( 'id' => $id ) );
+	}
+
+	public function delete_conversion( $id ) {
+		global $wpdb;
+		return $wpdb->delete( $this->tables['conversions'], array( 'id' => $id ) );
+	}
+
+	/* ── Form Tracking ───────────────────────────────────────── */
+
+	public function get_form_trackings() {
+		global $wpdb;
+		return $wpdb->get_results( "SELECT * FROM {$this->tables['forms']} ORDER BY sort_order ASC, id ASC" );
+	}
+
+	public function get_enabled_forms() {
+		global $wpdb;
+		return $wpdb->get_results( "SELECT * FROM {$this->tables['forms']} WHERE enabled = 1 ORDER BY sort_order ASC, id ASC" );
+	}
+
+	public function insert_form_tracking( $data ) {
+		global $wpdb;
+		$wpdb->insert( $this->tables['forms'], $data );
+		return (int) $wpdb->insert_id;
+	}
+
+	public function update_form_tracking( $id, $data ) {
+		global $wpdb;
+		return $wpdb->update( $this->tables['forms'], $data, array( 'id' => $id ) );
+	}
+
+	public function delete_form_tracking( $id ) {
+		global $wpdb;
+		return $wpdb->delete( $this->tables['forms'], array( 'id' => $id ) );
 	}
 
 	public function find_lead_by_visitor_today( $visitor_id ) {
