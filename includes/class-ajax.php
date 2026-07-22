@@ -22,6 +22,9 @@ class Smart_Lead_CRM_Ajax {
 		$visitor_id = sanitize_text_field( wp_unslash( $_POST['visitor_id'] ?? '' ) );
 		$action_type = sanitize_text_field( wp_unslash( $_POST['lead_action'] ?? '' ) );
 		$phone      = sanitize_text_field( wp_unslash( $_POST['phone'] ?? '' ) );
+		$name       = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+		$email      = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
+		$form_name  = sanitize_text_field( wp_unslash( $_POST['form_name'] ?? '' ) );
 
 		if ( ! $visitor_id ) wp_send_json_error( 'Missing visitor_id' );
 
@@ -43,10 +46,20 @@ class Smart_Lead_CRM_Ajax {
 
 		$existing = $db->find_lead_by_visitor_today( $visitor_id );
 
+		// Build dynamic remark from conversion label
+		$conv_label = $helper->get_conversion_label( $action_type );
+		$action_remark = $conv_label ? sprintf( 'Auto-created: %s', $conv_label ) : '';
+
 		if ( $existing ) {
 			$update = array();
 			if ( $phone && ! $existing->phone ) {
 				$update['phone'] = $phone;
+			}
+			if ( $email && empty( $existing->email ) ) {
+				$update['email'] = $email;
+			}
+			if ( $name && 'Website Visitor' === $existing->name ) {
+				$update['name'] = $name;
 			}
 			if ( $attribution->should_upgrade( $existing->lead_source, $attr['source'] ) ) {
 				$update['lead_source'] = $attr['source'];
@@ -55,13 +68,8 @@ class Smart_Lead_CRM_Ajax {
 				$update['ad_group']    = $attr['ad_group'];
 				$update['keyword']     = $attr['keyword'];
 			}
-			$click_label = array(
-				'whatsapp' => 'Auto-created: WhatsApp click',
-				'phone'    => 'Auto-created: Phone call click',
-			);
-			$action_remark = $click_label[ $action_type ] ?? '';
-			if ( $action_remark && empty( $existing->remarks ) ) {
-				$update['remarks'] = $action_remark;
+			if ( $action_remark && ( empty( $existing->remarks ) || false !== strpos( $existing->remarks, 'Auto-created:' ) ) ) {
+				$update['remarks'] = $form_name ? $action_remark . ' (' . $form_name . ')' : $action_remark;
 			}
 			$update['last_updated'] = current_time( 'mysql' );
 			$db->update_lead( $existing->id, $update );
@@ -70,14 +78,10 @@ class Smart_Lead_CRM_Ajax {
 			wp_send_json_success( array( 'lead_id' => $existing->id, 'action' => 'updated' ) );
 		}
 
-		$click_label = array(
-			'whatsapp' => 'Auto-created: WhatsApp click',
-			'phone'    => 'Auto-created: Phone call click',
-		);
-		$remarks = $click_label[ $action_type ] ?? 'Auto-created: website visit';
+		$remarks = $form_name ? $action_remark . ' (' . $form_name . ')' : ( $action_remark ?: 'Auto-created: website visit' );
 
 		$lead_data = array(
-			'name'         => 'Website Visitor',
+			'name'         => $name ?: 'Website Visitor',
 			'phone'        => $phone ?: '',
 			'status'       => 'new_lead',
 			'remarks'      => $remarks,
@@ -103,6 +107,9 @@ class Smart_Lead_CRM_Ajax {
 			'created_at'   => current_time( 'mysql' ),
 			'last_updated' => current_time( 'mysql' ),
 		);
+		if ( $email ) {
+			$lead_data['email'] = $email;
+		}
 
 		$lead_id = $db->insert_lead( $lead_data );
 		if ( $lead_id ) {
@@ -120,22 +127,23 @@ class Smart_Lead_CRM_Ajax {
 	private function log_tracking( $lead_id, $visitor_id, $signals ) {
 		$helper = slcrm_helper();
 		slcrm_db()->insert_tracking( array(
-			'lead_id'      => $lead_id,
-			'visitor_id'   => $visitor_id,
-			'visit_time'   => current_time( 'mysql' ),
-			'page_url'     => $signals['landing_page'] ?? '',
-			'utm_source'   => $signals['utm_source'] ?? '',
-			'utm_campaign' => $signals['utm_campaign'] ?? '',
-			'utm_medium'   => $signals['utm_medium'] ?? '',
-			'utm_term'     => $signals['utm_term'] ?? '',
-			'utm_content'  => $signals['utm_content'] ?? '',
-			'gclid'        => $signals['gclid'] ?? '',
-			'gbraid'       => $signals['gbraid'] ?? '',
-			'wbraid'       => $signals['wbraid'] ?? '',
-			'referer'      => $signals['referer'] ?? '',
-			'device'       => $signals['device'] ?? '',
-			'browser'      => $signals['browser'] ?? '',
-			'ip_address'   => $helper->get_client_ip(),
+			'lead_id'         => $lead_id,
+			'visitor_id'      => $visitor_id,
+			'visit_time'      => current_time( 'mysql' ),
+			'page_url'        => $signals['landing_page'] ?? '',
+			'utm_source'      => $signals['utm_source'] ?? '',
+			'utm_campaign'    => $signals['utm_campaign'] ?? '',
+			'utm_medium'      => $signals['utm_medium'] ?? '',
+			'utm_term'        => $signals['utm_term'] ?? '',
+			'utm_content'     => $signals['utm_content'] ?? '',
+			'gclid'           => $signals['gclid'] ?? '',
+			'gbraid'          => $signals['gbraid'] ?? '',
+			'wbraid'          => $signals['wbraid'] ?? '',
+			'referer'         => $signals['referer'] ?? '',
+			'device'          => $signals['device'] ?? '',
+			'browser'         => $signals['browser'] ?? '',
+			'ip_address'      => $helper->get_client_ip(),
+			'organic_keyword' => $signals['organic_keyword'] ?? '',
 		) );
 	}
 
@@ -232,6 +240,92 @@ class Smart_Lead_CRM_Ajax {
 			}
 		}
 
+		wp_send_json_success();
+	}
+
+	/* ── Conversion management ─────────────────────────────── */
+
+	public function save_conversion() {
+		$this->verify_admin();
+		$db = slcrm_db();
+
+		$id          = absint( $_POST['id'] ?? 0 );
+		$crm_action  = sanitize_text_field( wp_unslash( $_POST['crm_action'] ?? '' ) );
+		$label       = sanitize_text_field( wp_unslash( $_POST['label'] ?? '' ) );
+		$ads_label   = sanitize_text_field( wp_unslash( $_POST['google_ads_label'] ?? '' ) );
+		$ga4_event   = sanitize_text_field( wp_unslash( $_POST['ga4_event'] ?? '' ) );
+		$enabled     = isset( $_POST['enabled'] ) ? 1 : 0;
+		$category    = sanitize_text_field( wp_unslash( $_POST['category'] ?? 'interaction' ) );
+		$sort_order  = absint( $_POST['sort_order'] ?? 0 );
+
+		if ( ! $crm_action || ! $label ) wp_send_json_error( 'Missing required fields' );
+
+		$data = array(
+			'crm_action'       => $crm_action,
+			'label'            => $label,
+			'google_ads_label' => $ads_label,
+			'ga4_event'       => $ga4_event,
+			'enabled'         => $enabled,
+			'category'        => $category,
+			'sort_order'      => $sort_order,
+		);
+
+		if ( $id ) {
+			$db->update_conversion( $id, $data );
+		} else {
+			$id = $db->insert_conversion( $data );
+		}
+
+		wp_send_json_success( array( 'id' => $id ) );
+	}
+
+	public function delete_conversion() {
+		$this->verify_admin();
+		$id = absint( $_POST['id'] ?? 0 );
+		if ( ! $id ) wp_send_json_error( 'Missing ID' );
+		slcrm_db()->delete_conversion( $id );
+		wp_send_json_success();
+	}
+
+	/* ── Form tracking management ──────────────────────────── */
+
+	public function save_form_tracking() {
+		$this->verify_admin();
+		$db = slcrm_db();
+
+		$id         = absint( $_POST['id'] ?? 0 );
+		$form_name  = sanitize_text_field( wp_unslash( $_POST['form_name'] ?? '' ) );
+		$selector   = sanitize_text_field( wp_unslash( $_POST['selector'] ?? '' ) );
+		$event_type = sanitize_text_field( wp_unslash( $_POST['event_type'] ?? 'submit' ) );
+		$crm_action = sanitize_text_field( wp_unslash( $_POST['crm_action'] ?? '' ) );
+		$enabled    = isset( $_POST['enabled'] ) ? 1 : 0;
+		$sort_order = absint( $_POST['sort_order'] ?? 0 );
+
+		if ( ! $form_name || ! $selector || ! $crm_action ) wp_send_json_error( 'Missing required fields' );
+
+		$data = array(
+			'form_name'  => $form_name,
+			'selector'   => $selector,
+			'event_type' => $event_type,
+			'crm_action' => $crm_action,
+			'enabled'    => $enabled,
+			'sort_order' => $sort_order,
+		);
+
+		if ( $id ) {
+			$db->update_form_tracking( $id, $data );
+		} else {
+			$id = $db->insert_form_tracking( $data );
+		}
+
+		wp_send_json_success( array( 'id' => $id ) );
+	}
+
+	public function delete_form_tracking() {
+		$this->verify_admin();
+		$id = absint( $_POST['id'] ?? 0 );
+		if ( ! $id ) wp_send_json_error( 'Missing ID' );
+		slcrm_db()->delete_form_tracking( $id );
 		wp_send_json_success();
 	}
 }
