@@ -50,6 +50,14 @@ class Smart_Lead_CRM_Tracker {
 		if ( ! isset( $_COOKIE['slcrm_referer'] ) ) {
 			$ref = isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) : '';
 			setcookie( 'slcrm_referer', $ref, time() + ( $duration * DAY_IN_SECONDS ), COOKIEPATH, COOKIE_DOMAIN );
+
+			// Capture organic search keyword from referer
+			if ( 'yes' === slcrm_get_setting( 'capture_organic_keywords', 'yes' ) ) {
+				$kw = smart_lead_crm()->attribution->extract_organic_keyword( $ref );
+				if ( $kw ) {
+					setcookie( 'slcrm_organic_keyword', $kw, time() + ( $duration * DAY_IN_SECONDS ), COOKIEPATH, COOKIE_DOMAIN );
+				}
+			}
 		}
 
 		// Device + browser
@@ -63,7 +71,7 @@ class Smart_Lead_CRM_Tracker {
 	}
 
 	public static function get_tracking_data() {
-		$keys = array( 'visitor_id', 'gclid', 'gbraid', 'wbraid', 'utm_source', 'utm_campaign', 'utm_medium', 'utm_term', 'utm_content', 'landing_page', 'referer', 'device', 'browser' );
+		$keys = array( 'visitor_id', 'gclid', 'gbraid', 'wbraid', 'utm_source', 'utm_campaign', 'utm_medium', 'utm_term', 'utm_content', 'landing_page', 'referer', 'device', 'browser', 'organic_keyword' );
 		$data = array();
 		foreach ( $keys as $k ) {
 			$ck = 'slcrm_' . $k;
@@ -77,10 +85,18 @@ class Smart_Lead_CRM_Tracker {
 		wp_enqueue_script( 'slcrm-tracker', SMART_LEAD_CRM_PLUGIN_URL . 'assets/js/tracker.js', array(), SMART_LEAD_CRM_VERSION, true );
 
 		$wa_number = preg_replace( '/[^0-9]/', '', slcrm_get_setting( 'whatsapp_business_number', '' ) );
+
+		$conversions_obj = new Smart_Lead_CRM_Conversions();
+		$config = $conversions_obj->get_config();
+
 		wp_localize_script( 'slcrm-tracker', 'slcrmTracker', array(
 			'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
 			'nonce'          => wp_create_nonce( 'slcrm_public_nonce' ),
 			'businessNumber' => $wa_number,
+			'conversions'    => $config['conversions'],
+			'forms'          => $config['forms'],
+			'adsId'          => $config['ads_id'],
+			'ga4Id'          => $config['ga4_id'],
 		) );
 
 		if ( $wa_number ) {
