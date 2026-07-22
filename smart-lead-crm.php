@@ -3,15 +3,15 @@
  * Plugin Name: Smart Lead CRM
  * Plugin URI:  https://smartleadcrm.com
  * Description: WhatsApp-first CRM with multi-mode connection, full attribution tracking, and customer intelligence. Fully automated lead capture — no forms needed.
- * Version:     1.4.0
+ * Version:     2.0.0
  * Author:      Smart Lead CRM
  * License:     GPL-2.0+
  * Text Domain: smart-lead-crm
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'SMART_LEAD_CRM_VERSION',    '1.4.0' );
-define( 'SMART_LEAD_CRM_DB_VERSION', '1.4.0' );
+define( 'SMART_LEAD_CRM_VERSION',    '2.0.0' );
+define( 'SMART_LEAD_CRM_DB_VERSION', '2.0.0' );
 define( 'SMART_LEAD_CRM_PLUGIN_FILE', __FILE__ );
 define( 'SMART_LEAD_CRM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'SMART_LEAD_CRM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -23,7 +23,7 @@ final class Smart_Lead_CRM {
 
 	public $loader; public $installer; public $db; public $admin;
 	public $settings; public $tracker; public $helper; public $ajax;
-	public $export; public $attribution; public $messaging;
+	public $export; public $attribution; public $messaging; public $conversions;
 
 	public static function instance() {
 		if ( null === self::$instance ) self::$instance = new self();
@@ -43,6 +43,7 @@ final class Smart_Lead_CRM {
 		require_once $d . 'class-settings.php';
 		require_once $d . 'class-helper.php';
 		require_once $d . 'class-attribution.php';
+		require_once $d . 'class-conversions.php';
 		require_once $d . 'class-tracker.php';
 		require_once $d . 'class-ajax.php';
 		require_once $d . 'class-export.php';
@@ -59,6 +60,7 @@ final class Smart_Lead_CRM {
 		$this->settings    = new Smart_Lead_CRM_Settings();
 		$this->helper      = new Smart_Lead_CRM_Helper();
 		$this->attribution = new Smart_Lead_CRM_Attribution();
+		$this->conversions  = new Smart_Lead_CRM_Conversions();
 		$this->tracker     = new Smart_Lead_CRM_Tracker();
 		$this->ajax        = new Smart_Lead_CRM_Ajax();
 		$this->export      = new Smart_Lead_CRM_Export();
