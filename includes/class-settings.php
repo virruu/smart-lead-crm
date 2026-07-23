@@ -69,9 +69,19 @@ class Smart_Lead_CRM_Settings {
 	}
 
 	public function register_settings() {
+		$checkbox_keys = array( 'capture_gclid', 'capture_utm', 'capture_organic_keywords', 'enable_debug' );
 		foreach ( array_keys( $this->defaults ) as $key ) {
-			register_setting( 'smart_lead_crm_settings_group', $this->prefix . $key );
+			$option_name = $this->prefix . $key;
+			if ( in_array( $key, $checkbox_keys, true ) ) {
+				register_setting( 'smart_lead_crm_settings_group', $option_name, array( $this, 'sanitize_checkbox' ) );
+			} else {
+				register_setting( 'smart_lead_crm_settings_group', $option_name );
+			}
 		}
+	}
+
+	public function sanitize_checkbox( $value ) {
+		return ( 'yes' === $value || '1' === $value ) ? 'yes' : 'no';
 	}
 
 	public function render_settings_page() {
