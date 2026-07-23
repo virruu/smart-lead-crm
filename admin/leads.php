@@ -100,6 +100,9 @@ if ( 'view' === $action ) {
 
 					<div id="slcrm-save-notice" class="slcrm-notice" style="margin-bottom:12px;"></div>
 					<table class="slcrm-detail-table">
+						<tr><th><?php esc_html_e( 'Customer Name', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-name" value="<?php echo esc_attr( $lead->name ); ?>" placeholder="Website Visitor" class="regular-text" /></td></tr>
+						<tr><th><?php esc_html_e( 'Phone Number', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-phone" value="<?php echo esc_attr( $lead->phone ); ?>" placeholder="e.g. 919876543210" class="regular-text" /></td></tr>
+						<tr><th><?php esc_html_e( 'Email', 'smart-lead-crm' ); ?></th><td><input type="email" id="slcrm-lead-email" value="<?php echo esc_attr( $lead->email ?? '' ); ?>" placeholder="customer@example.com" class="regular-text" /></td></tr>
 						<tr><th><?php esc_html_e( 'Status', 'smart-lead-crm' ); ?></th><td><select id="slcrm-lead-status" data-lead-id="<?php echo esc_attr( $lead->id ); ?>"><?php foreach ( $statuses as $k=>$l ) : ?><option value="<?php echo esc_attr( $k ); ?>" <?php selected( $lead->status, $k ); ?>><?php echo esc_html( $l ); ?></option><?php endforeach; ?></select></td></tr>
 						<tr><th><?php esc_html_e( 'Lead Source', 'smart-lead-crm' ); ?></th><td><select id="slcrm-lead-source"><?php foreach ( $sources as $k=>$l ) : ?><option value="<?php echo esc_attr( $k ); ?>" <?php selected( $lead->lead_source, $k ); ?>><?php echo esc_html( $l ); ?></option><?php endforeach; ?></select></td></tr>
 						<tr><th><?php esc_html_e( 'Campaign', 'smart-lead-crm' ); ?></th><td><input type="text" id="slcrm-lead-campaign" value="<?php echo esc_attr( $lead->campaign ); ?>" /></td></tr>
