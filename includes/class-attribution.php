@@ -108,7 +108,7 @@ class Smart_Lead_CRM_Attribution {
 
 	public function extract_organic_keyword( $referer ) {
 		if ( empty( $referer ) ) return '';
-		$host = wp_parse_url( $referer, PHP_URL_HOST );
+		$host  = wp_parse_url( $referer, PHP_URL_HOST );
 		$query = wp_parse_url( $referer, PHP_URL_QUERY );
 		if ( ! $query ) return '';
 		parse_str( $query, $params );
@@ -118,6 +118,10 @@ class Smart_Lead_CRM_Attribution {
 			if ( ! empty( $params[ $k ] ) ) {
 				return sanitize_text_field( $params[ $k ] );
 			}
+		}
+
+		if ( $host && $this->matches_search_engine( $referer ) ) {
+			return '(not provided)';
 		}
 		return '';
 	}
