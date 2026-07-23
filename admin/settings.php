@@ -154,7 +154,7 @@ $form_trackings = $db->get_form_trackings();
 									<option value="custom" <?php selected( $c->category, 'custom' ); ?>><?php esc_html_e( 'Custom', 'smart-lead-crm' ); ?></option>
 								</select>
 							</td>
-							<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-conv-save"><?php esc_html_e( 'Save', 'smart-lead-crm' ); ?></button></td>
+							<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-conv-save"><?php esc_html_e( 'Save', 'smart-lead-crm' ); ?></button> <button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-conv-delete" style="margin-left:4px;color:#dc2626;"><?php esc_html_e( 'Delete', 'smart-lead-crm' ); ?></button></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
@@ -192,7 +192,7 @@ $form_trackings = $db->get_form_trackings();
 								</select>
 							</td>
 							<td><input type="text" class="slcrm-form-action" value="<?php echo esc_attr( $f->crm_action ); ?>" placeholder="e.g. contact_form" /></td>
-							<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-form-save"><?php esc_html_e( 'Save', 'smart-lead-crm' ); ?></button></td>
+							<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-form-save"><?php esc_html_e( 'Save', 'smart-lead-crm' ); ?></button> <button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-form-delete" style="margin-left:4px;color:#dc2626;"><?php esc_html_e( 'Delete', 'smart-lead-crm' ); ?></button></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
