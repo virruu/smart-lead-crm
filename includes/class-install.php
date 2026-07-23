@@ -82,6 +82,7 @@ class Smart_Lead_CRM_Installer {
 			device VARCHAR(50) NOT NULL DEFAULT '',
 			browser VARCHAR(50) NOT NULL DEFAULT '',
 			ip_address VARCHAR(100) NOT NULL DEFAULT '',
+			organic_keyword VARCHAR(255) NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY lead_id (lead_id),
