@@ -13,6 +13,8 @@ A WordPress plugin that captures leads from website interactions (WhatsApp click
 - **WhatsApp integration**: App Mode, Cloud API, or Coexistence
 - **Lead management**: Status, source, campaign, remarks, notes, bookings
 - **Admin dashboard**: Stats, funnel, lead list, detail view, settings
+- **Auto-detect customer name & mobile**: Name and phone are auto-extracted from WhatsApp/tel links and form fields; manually editable on the lead detail page
+- **Organic keyword handling**: Extracts keywords from search engine referrers (Bing, Yahoo, Baidu, Yandex, DuckDuckGo); shows "(not provided)" for Google organic searches since Google encrypts these terms since 2013
 
 ## Installation
 
@@ -22,94 +24,113 @@ A WordPress plugin that captures leads from website interactions (WhatsApp click
 4. Add conversion mappings in **Settings > Conversions** tab
 5. Add form selectors in **Settings > Form Tracking** tab
 
+## How Keyword Capture Works
+
+### Google Ads (UTM Term)
+When a visitor arrives via a Google Ads URL with `utm_term=cabsnearme`, the plugin captures this value into the `keyword` field on the lead. This works automatically — no external setup needed.
+
+### Organic Search Keywords
+- **Bing, Yahoo, Baidu, Yandex, DuckDuckGo**: The plugin extracts the search query from the referrer URL's `q`/`query`/`p`/`wd` parameters.
+- **Google**: Since 2013, Google encrypts organic search queries and does not pass the keyword in the referrer. The plugin shows "(not provided)" for these visits. This is a Google limitation, not a plugin bug — no CRM or analytics tool can recover these keywords.
+- **No Google Analytics needed**: The plugin does NOT require GA4 or Google Analytics for keyword capture. It parses referrer URLs directly.
+
+## How Customer Name & Mobile Auto-Detection Works
+
+- **WhatsApp clicks**: The phone number is extracted from the `wa.me/<phone>` or `whatsapp://send?phone=<phone>` URL
+- **Phone link clicks**: Extracted from `tel:<phone>` links
+- **Form submissions**: The plugin auto-detects name, email, and phone from form fields by matching field names (name, full name, customer name, email, mail, phone, mobile, tel, contact)
+- **Manual edit**: On the lead detail page, you can manually enter or edit the customer name, phone number, and email at any time
+
+## Settings That Save Properly
+
+All settings save correctly, including checkboxes:
+- GCLID capture (checkbox)
+- UTM capture (checkbox)
+- Organic keyword capture (checkbox)
+- Debug logging (checkbox)
+- Business name, type, Google Ads ID, GA4 ID (text fields)
+- WhatsApp connection mode, tokens, business number (text fields)
+- Cookie duration (number)
+
 ## File Structure
 
 ### Root Files
 
-| File | Status | Description |
-|------|--------|-------------|
-| `smart-lead-crm.php` | **Update** | Main plugin file — version 2.0.0, loads all classes |
-| `README.md` | **New** | This file |
-| `uninstall.php` | **Update** | Cleanup on uninstall |
+| File | Description |
+|------|-------------|
+| `smart-lead-crm.php` | Main plugin file — version 2.0.1, loads all classes |
+| `README.md` | This file |
+| `uninstall.php` | Cleanup on uninstall |
 
 ### `includes/` Directory
 
-| File | Status | Description |
-|------|--------|-------------|
-| `class-install.php` | **Update** | DB schema: added `slcrm_conversions` + `slcrm_form_tracking` tables, `email` column on leads, `organic_keyword` on tracking; seeds default conversions |
-| `class-db.php` | **Update** | Added CRUD for conversions + form tracking, `get_lead_by_phone()` |
-| `class-settings.php` | **Update** | Added `business_type`, `capture_organic_keywords`, `form_capture_name/email/phone` settings |
-| `class-helper.php` | **Update** | Added 11 business types, 10 conversion presets, `get_conversion_label()` |
-| `class-attribution.php` | **Update** | Added `extract_organic_keyword()` for search engine referrer parsing |
-| `class-conversions.php` | **New** | Builds JS conversion config, generates gtag scripts |
-| `class-tracker.php` | **Update** | Localizes conversions + forms config to `slcrmTracker` JS object |
-| `class-ajax.php` | **Update** | Accepts name/email/form_name in auto lead, dynamic remarks, conversion + form tracking CRUD handlers |
-| `class-admin.php` | **Update** | Enqueues admin JS/CSS, localizes admin nonce + ajax URL |
-| `class-messaging.php` | **Existing** | WhatsApp send/receive (no changes) |
-| `class-export.php` | **Existing** | CSV export (no changes) |
+| File | Description |
+|------|-------------|
+| `class-install.php` | DB schema: `slcrm_conversions` + `slcrm_form_tracking` tables, `email` column on leads, `organic_keyword` on tracking; seeds default conversions |
+| `class-db.php` | CRUD for leads, tracking, bookings, notes, conversions, form tracking |
+| `class-settings.php` | All settings with proper sanitize callbacks for checkboxes |
+| `class-helper.php` | 11 business types, 10 conversion presets, label helpers |
+| `class-attribution.php` | Organic keyword extraction with "(not provided)" handling for Google |
+| `class-conversions.php` | Builds JS conversion config, generates gtag scripts |
+| `class-tracker.php` | Localizes conversions + forms config to `slcrmTracker` JS object |
+| `class-ajax.php` | 4 new AJAX actions registered: save/delete conversion, save/delete form tracking; accepts name/email/form_name in auto lead |
+| `class-admin.php` | Enqueues admin JS/CSS, localizes admin nonce + ajax URL |
+| `class-messaging.php` | WhatsApp send/receive |
+| `class-export.php` | CSV export |
 
 ### `assets/js/` Directory
 
-| File | Status | Description |
-|------|--------|-------------|
-| `tracker.js` | **Rewrite** | Generic `createLead()`, form tracking via CSS selectors, conversion firing, MutationObserver, link detection |
-| `admin.js` | **Rewrite** | Settings tabs, conversion CRUD, form tracking CRUD, all existing lead/booking/note handlers |
+| File | Description |
+|------|-------------|
+| `tracker.js` | Generic `createLead()`, form tracking via CSS selectors, conversion firing, MutationObserver, link detection |
+| `admin.js` | Settings tabs, conversion CRUD with delete, form tracking CRUD with delete, lead/booking/note handlers, name/phone/email editing |
 
 ### `assets/css/` Directory
 
-| File | Status | Description |
-|------|--------|-------------|
-| `admin.css` | **Update** | Settings tabs, conversion/form tracking tables, responsive breakpoints |
+| File | Description |
+|------|-------------|
+| `admin.css` | Settings tabs, conversion/form tracking tables, responsive breakpoints |
 
 ### `admin/` Directory
 
-| File | Status | Description |
-|------|--------|-------------|
-| `settings.php` | **Rewrite** | 5-tab settings: Business, WhatsApp, Tracking, Conversions, Form Tracking |
-| `dashboard.php` | **Existing** | Dashboard stats (no changes) |
-| `leads.php` | **Existing** | Lead list (no changes) |
-| `lead-detail.php` | **Existing** | Lead detail view (no changes) |
-| `setup.php` | **Existing** | Setup wizard (no changes) |
-
-## New Files to Create
-
-1. `includes/class-conversions.php` — Conversion management class
-2. `README.md` — This documentation
-
-## Files to Update
-
-1. `smart-lead-crm.php` — Version 2.0.0, include `class-conversions.php`
-2. `includes/class-install.php` — New tables + columns + seed data
-3. `includes/class-db.php` — Conversion + form tracking CRUD
-4. `includes/class-settings.php` — New settings fields
-5. `includes/class-helper.php` — Business types + conversion presets
-6. `includes/class-attribution.php` — Organic keyword extraction
-7. `includes/class-tracker.php` — Localize conversion/form config
-8. `includes/class-ajax.php` — Register 4 new AJAX actions, accept extra lead data
-9. `includes/class-admin.php` — Enqueue updated scripts
-10. `admin/settings.php` — 5-tab settings UI
-11. `assets/js/tracker.js` — Full rewrite
-12. `assets/js/admin.js` — Full rewrite
-13. `assets/css/admin.css` — New styles
+| File | Description |
+|------|-------------|
+| `settings.php` | 5-tab settings: Business, WhatsApp, Tracking, Conversions, Form Tracking |
+| `dashboard.php` | Dashboard stats |
+| `leads.php` | Lead list + lead detail with editable name/phone/email |
+| `reports.php` | Reports view |
+| `export.php` | CSV export UI |
+| `whatsapp.php` | WhatsApp settings |
 
 ## Database Tables
 
-### `slcrm_leads` (updated)
-Added `email` column (varchar(255)).
+### `slcrm_leads`
+```sql
+id, name, phone, email, status, lead_source, medium, campaign, ad_group, keyword,
+booking_route, booking_date, follow_up_date, gclid, gbraid, wbraid,
+utm_source, utm_campaign, utm_medium, utm_term, utm_content,
+landing_page, referer, device, browser, ip_address, customer_mobile,
+visitor_id, remarks, last_updated, created_at
+```
 
-### `slcrm_tracking` (updated)
-Added `organic_keyword` column (varchar(255)).
+### `slcrm_tracking`
+```sql
+id, lead_id, visitor_id, visit_time, page_url,
+utm_source, utm_campaign, utm_medium, utm_term, utm_content,
+gclid, gbraid, wbraid, referer, device, browser, ip_address,
+organic_keyword, created_at
+```
 
-### `slcrm_conversions` (new)
+### `slcrm_conversions`
 ```sql
 id, crm_action, label, google_ads_label, ga4_event, enabled, category, sort_order
 ```
 
-### `slcrm_form_tracking` (new)
+### `slcrm_form_tracking`
 ```sql
 id, form_name, selector, event_type, crm_action, enabled, sort_order
 ```
 
 ## Version
 
-2.0.0
+2.0.1
