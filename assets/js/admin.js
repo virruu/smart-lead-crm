@@ -51,6 +51,9 @@
         showNotice($saveNotice, 'loading', 'Saving…');
         $.post(ajaxUrl, {
             action: 'slcrm_update_lead', nonce: nonce, lead_id: leadId,
+            name: $('#slcrm-lead-name').val(),
+            phone: $('#slcrm-lead-phone').val(),
+            email: $('#slcrm-lead-email').val(),
             status: $('#slcrm-lead-status').val(),
             lead_source: $('#slcrm-lead-source').val(),
             campaign: $('#slcrm-lead-campaign').val(),
@@ -201,6 +204,17 @@
         saveConversion($(this).closest('tr'));
     });
 
+    $(document).on('click', '.slcrm-conv-delete', function (e) {
+        e.preventDefault();
+        var $row = $(this).closest('tr');
+        var id = $row.data('id') || 0;
+        if (!id) { $row.remove(); return; }
+        if (!window.confirm('Delete this conversion?')) return;
+        $.post(ajaxUrl, { action: 'slcrm_delete_conversion', nonce: nonce, id: id }).done(function (res) {
+            if (res.success) $row.fadeOut(300, function () { $row.remove(); });
+        });
+    });
+
     $(document).on('click', '#slcrm-add-conversion', function (e) {
         e.preventDefault();
         var $body = $('#slcrm-conversions-body');
@@ -212,7 +226,7 @@
             '<td><input type="text" class="slcrm-conv-ads" placeholder="e.g. AbcD1234" /></td>' +
             '<td><input type="text" class="slcrm-conv-ga4" placeholder="e.g. quote_request" /></td>' +
             '<td><select class="slcrm-conv-category"><option value="interaction">Interaction</option><option value="form">Form</option><option value="custom">Custom</option></select></td>' +
-            '<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-conv-save">Save</button></td>' +
+            '<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-conv-save">Save</button> <button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-conv-delete" style="margin-left:4px;color:#dc2626;">Delete</button></td>' +
             '</tr>'
         );
         $body.append($row);
@@ -256,11 +270,22 @@
             '<td><input type="text" class="slcrm-form-selector" placeholder="#tour-form" /></td>' +
             '<td><select class="slcrm-form-event"><option value="submit">submit</option><option value="click">click</option><option value="change">change</option></select></td>' +
             '<td><input type="text" class="slcrm-form-action" placeholder="e.g. tour" /></td>' +
-            '<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-form-save">Save</button></td>' +
+            '<td><button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-form-save">Save</button> <button class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-form-delete" style="margin-left:4px;color:#dc2626;">Delete</button></td>' +
             '</tr>'
         );
         $body.append($row);
         $row.find('input:first').focus();
+    });
+
+    $(document).on('click', '.slcrm-form-delete', function (e) {
+        e.preventDefault();
+        var $row = $(this).closest('tr');
+        var id = $row.data('id') || 0;
+        if (!id) { $row.remove(); return; }
+        if (!window.confirm('Delete this form tracking?')) return;
+        $.post(ajaxUrl, { action: 'slcrm_delete_form_tracking', nonce: nonce, id: id }).done(function (res) {
+            if (res.success) $row.fadeOut(300, function () { $row.remove(); });
+        });
     });
 
 }(jQuery));
