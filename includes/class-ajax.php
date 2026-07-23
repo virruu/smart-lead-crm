@@ -14,6 +14,10 @@ class Smart_Lead_CRM_Ajax {
 		add_action( 'wp_ajax_slcrm_add_note',          array( $this, 'add_note' ) );
 		add_action( 'wp_ajax_slcrm_add_booking',       array( $this, 'add_booking' ) );
 		add_action( 'wp_ajax_slcrm_update_booking',    array( $this, 'update_booking' ) );
+		add_action( 'wp_ajax_slcrm_save_conversion',    array( $this, 'save_conversion' ) );
+		add_action( 'wp_ajax_slcrm_delete_conversion',  array( $this, 'delete_conversion' ) );
+		add_action( 'wp_ajax_slcrm_save_form_tracking', array( $this, 'save_form_tracking' ) );
+		add_action( 'wp_ajax_slcrm_delete_form_tracking', array( $this, 'delete_form_tracking' ) );
 	}
 
 	public function auto_create_lead() {
@@ -160,7 +164,7 @@ class Smart_Lead_CRM_Ajax {
 		if ( ! $id ) wp_send_json_error( 'Missing lead ID' );
 
 		$data = array();
-		$fields = array( 'status', 'lead_source', 'campaign', 'ad_group', 'keyword', 'booking_route', 'remarks' );
+		$fields = array( 'name', 'phone', 'email', 'status', 'lead_source', 'campaign', 'ad_group', 'keyword', 'booking_route', 'remarks' );
 		foreach ( $fields as $f ) {
 			if ( isset( $_POST[ $f ] ) ) {
 				$data[ $f ] = sanitize_text_field( wp_unslash( $_POST[ $f ] ) );
