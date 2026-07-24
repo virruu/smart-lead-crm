@@ -106,6 +106,101 @@ $mm = $mode_meta[ $mode ] ?? $mode_meta['app_mode'];
 		</div>
 	</div>
 
+	<?php
+	$follow_ups = $db->get_follow_ups();
+	$overdue_count = $db->get_overdue_count();
+	if ( ! empty( $follow_ups ) ) :
+	?>
+	<div class="slcrm-card" style="margin-top:16px;border-left:4px solid var(--warning);">
+		<div class="slcrm-section-header">
+			<h3 style="color:var(--warning);">
+				<span class="dashicons dashicons-bell"></span>
+				<?php esc_html_e( 'Follow-up Reminders', 'smart-lead-crm' ); ?>
+				<?php if ( $overdue_count > 0 ) : ?>
+					<span style="background:var(--warning);color:#fff;font-size:11px;padding:2px 10px;border-radius:9999px;font-weight:700;margin-left:6px;"><?php echo esc_html( number_format_i18n( $overdue_count ) ); ?> <?php esc_html_e( 'overdue', 'smart-lead-crm' ); ?></span>
+				<?php endif; ?>
+			</h3>
+		</div>
+		<p style="color:var(--gray-500);font-size:13px;margin-bottom:12px;"><?php esc_html_e( 'These leads have been waiting more than 24 hours. Follow up to increase conversion.', 'smart-lead-crm' ); ?></p>
+		<div style="display:flex;flex-direction:column;">
+			<?php foreach ( $follow_ups as $fu ) :
+				$hours_ago = round( ( time() - strtotime( $fu->last_updated ) ) / 3600 );
+				$wa_link = $fu->phone ? 'https://wa.me/' . preg_replace( '/[^0-9]/', '', $fu->phone ) : '';
+			?>
+			<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);">
+				<div style="width:32px;height:32px;border-radius:50%;background:var(--warning);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">
+					<span class="dashicons dashicons-clock" style="font-size:16px;width:16px;height:16px;"></span>
+				</div>
+				<div style="flex:1;min-width:0;">
+					<div style="font-size:14px;font-weight:600;color:var(--gray-800);">
+						<a href="<?php echo esc_url( admin_url( 'admin.php?page=smart-lead-crm-leads&action=view&lead_id=' . $fu->id ) ); ?>" style="color:inherit;text-decoration:none;">
+							#<?php echo esc_html( $fu->id ); ?> <?php echo esc_html( $fu->name ?: ( $fu->phone ?: 'Website Visitor' ) ); ?>
+						</a>
+					</div>
+					<div style="font-size:12px;color:var(--gray-400);margin-top:2px;">
+						<?php echo esc_html( $helper->get_status_label( $fu->status ) ); ?> · <?php echo esc_html( $helper->get_source_label( $fu->lead_source ) ); ?>
+						· <?php printf( esc_html__( '%s hours ago', 'smart-lead-crm' ), esc_html( $hours_ago ) ); ?>
+					</div>
+				</div>
+				<?php if ( $wa_link ) : ?>
+				<a href="<?php echo esc_url( $wa_link ); ?>" target="_blank" class="slcrm-btn slcrm-btn-sm" style="background:var(--wa-green);color:#fff;flex-shrink:0;">
+					<span class="dashicons dashicons-whatsapp"></span> <?php esc_html_e( 'Follow up', 'smart-lead-crm' ); ?>
+				</a>
+				<?php endif; ?>
+			</div>
+			<?php endforeach; ?>
+		</div>
+	</div>
+	<?php endif; ?>
+
+	<?php
+	$campaigns = $db->get_revenue_by_campaign();
+	$daily_spend = (float) slcrm_get_setting( 'google_ads_daily_spend', '0' );
+	if ( ! empty( $campaigns ) && $daily_spend > 0 ) :
+	?>
+	<div class="slcrm-card" style="margin-top:16px;">
+		<div class="slcrm-section-header">
+			<h3><span class="dashicons dashicons-chart-line"></span> <?php esc_html_e( 'ROI by Campaign', 'smart-lead-crm' ); ?></h3>
+		</div>
+		<div style="overflow-x:auto;">
+			<table class="slcrm-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Campaign', 'smart-lead-crm' ); ?></th>
+						<th style="text-align:center;"><?php esc_html_e( 'Leads', 'smart-lead-crm' ); ?></th>
+						<th style="text-align:center;"><?php esc_html_e( 'Bookings', 'smart-lead-crm' ); ?></th>
+						<th style="text-align:right;"><?php esc_html_e( 'Revenue', 'smart-lead-crm' ); ?></th>
+						<th style="text-align:right;"><?php esc_html_e( 'Est. Cost', 'smart-lead-crm' ); ?></th>
+						<th style="text-align:right;"><?php esc_html_e( 'ROI', 'smart-lead-crm' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php
+					$total_leads = 0;
+					foreach ( $campaigns as $c ) $total_leads += (int) $c->leads;
+					foreach ( $campaigns as $c ) :
+						$lead_share = $total_leads > 0 ? ( (int) $c->leads / $total_leads ) : 0;
+						$est_cost = $daily_spend * 30 * $lead_share;
+						$revenue = (float) $c->revenue;
+						$roi = $est_cost > 0 ? ( ( $revenue - $est_cost ) / $est_cost * 100 ) : 0;
+						$roi_color = $roi >= 0 ? 'var(--success)' : 'var(--error)';
+					?>
+					<tr>
+						<td style="font-weight:600;"><?php echo esc_html( $c->campaign ); ?></td>
+						<td style="text-align:center;"><?php echo esc_html( number_format_i18n( $c->leads ) ); ?></td>
+						<td style="text-align:center;"><?php echo esc_html( number_format_i18n( $c->bookings ) ); ?></td>
+						<td style="text-align:right;font-weight:600;"><?php echo esc_html( slcrm_format_currency( $revenue ) ); ?></td>
+						<td style="text-align:right;color:var(--gray-500);"><?php echo esc_html( slcrm_format_currency( $est_cost ) ); ?></td>
+						<td style="text-align:right;font-weight:700;color:<?php echo esc_attr( $roi_color ); ?>;"><?php echo esc_html( number_format_i18n( $roi, 1 ) ); ?>%</td>
+					</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+		<p style="color:var(--gray-400);font-size:12px;margin-top:8px;"><?php esc_html_e( 'Estimated cost is based on your daily ad spend setting, proportional to lead volume per campaign. Revenue is based on booking fares.', 'smart-lead-crm' ); ?></p>
+	</div>
+	<?php endif; ?>
+
 	<div class="slcrm-grid slcrm-grid-2" style="margin-top:8px;">
 		<div class="slcrm-card">
 			<div class="slcrm-section-header">
@@ -122,6 +217,7 @@ $mm = $mode_meta[ $mode ] ?? $mode_meta['app_mode'];
 				<div style="display:flex;flex-direction:column;">
 					<?php foreach ( $recent_leads as $lead ) :
 						$initials = strtoupper( substr( $lead->name ?: $lead->phone, 0, 1 ) );
+						$action_label = $lead->lead_action ? $helper->get_conversion_label( $lead->lead_action ) : '';
 					?>
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=smart-lead-crm-leads&action=view&lead_id=' . $lead->id ) ); ?>"
 					   style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--gray-100);text-decoration:none;color:inherit;">
@@ -134,7 +230,11 @@ $mm = $mode_meta[ $mode ] ?? $mode_meta['app_mode'];
 								<?php echo esc_html( $lead->name ?: ( $lead->phone ?: 'Website Visitor' ) ); ?>
 							</div>
 							<div style="font-size:12px;color:var(--gray-400);margin-top:2px;">
-								<?php if ( $lead->remarks ) : ?>
+								<?php if ( $action_label ) : ?>
+									<span class="dashicons dashicons-bell" style="font-size:11px;width:11px;height:11px;vertical-align:middle;color:var(--primary-500);"></span>
+									<?php echo esc_html( $action_label ); ?>
+									<?php if ( $lead->form_name ) echo ' — ' . esc_html( $lead->form_name ); ?>
+								<?php elseif ( $lead->remarks ) : ?>
 									<?php echo esc_html( wp_trim_words( $lead->remarks, 7, '…' ) ); ?>
 								<?php elseif ( $lead->phone ) : ?>
 									<span class="dashicons dashicons-phone" style="font-size:11px;width:11px;height:11px;vertical-align:middle;"></span> <?php echo esc_html( $lead->phone ); ?>
@@ -154,6 +254,26 @@ $mm = $mode_meta[ $mode ] ?? $mode_meta['app_mode'];
 		</div>
 
 		<div style="display:flex;flex-direction:column;gap:16px;">
+			<?php
+			$today_triggers = $db->get_today_triggers();
+			if ( ! empty( $today_triggers ) ) :
+			?>
+			<div class="slcrm-card">
+				<div class="slcrm-section-header">
+					<h3><span class="dashicons dashicons-bell"></span> <?php esc_html_e( "Today's Triggers", 'smart-lead-crm' ); ?></h3>
+				</div>
+				<div style="display:flex;flex-wrap:wrap;gap:8px;">
+					<?php foreach ( $today_triggers as $t ) : ?>
+						<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--primary-50);border:1px solid var(--primary-200);border-radius:9999px;font-size:13px;font-weight:600;color:var(--primary-700);">
+							<span class="dashicons dashicons-<?php echo esc_attr( $t->lead_action === 'whatsapp' ? 'whatsapp' : ( $t->lead_action === 'phone' ? 'phone' : 'feedback' ) ); ?>" style="font-size:14px;width:14px;height:14px;"></span>
+							<?php echo esc_html( $helper->get_conversion_label( $t->lead_action ) ); ?>
+							<span style="background:var(--primary-500);color:#fff;font-size:11px;padding:1px 8px;border-radius:9999px;font-weight:700;"><?php echo esc_html( number_format_i18n( $t->count ) ); ?></span>
+						</span>
+					<?php endforeach; ?>
+				</div>
+			</div>
+			<?php endif; ?>
+
 			<div class="slcrm-card">
 				<div class="slcrm-section-header">
 					<h3><span class="dashicons dashicons-admin-generic"></span> <?php esc_html_e( 'Quick Actions', 'smart-lead-crm' ); ?></h3>
@@ -193,6 +313,47 @@ $mm = $mode_meta[ $mode ] ?? $mode_meta['app_mode'];
 				<span class="dashicons dashicons-info"></span>
 				<div><?php esc_html_e( 'Lead capture is fully automated. Leads are auto-created when visitors click WhatsApp or phone links, and when customers message your WhatsApp Business number. No forms needed.', 'smart-lead-crm' ); ?></div>
 			</div>
+		</div>
+	</div>
+</div>
+
+<button class="slcrm-fab" id="slcrm-quick-add-fab" title="<?php esc_attr_e( 'Add Lead', 'smart-lead-crm' ); ?>">
+	<span class="dashicons dashicons-plus-alt2"></span>
+</button>
+<span class="slcrm-fab-label"><?php esc_html_e( 'Quick Add Lead', 'smart-lead-crm' ); ?></span>
+
+<div class="slcrm-modal-overlay" id="slcrm-quick-add-modal">
+	<div class="slcrm-modal">
+		<div class="slcrm-modal-header">
+			<h3><span class="dashicons dashicons-email-alt"></span> <?php esc_html_e( 'Quick Add Lead', 'smart-lead-crm' ); ?></h3>
+			<button class="slcrm-modal-close" type="button"><span class="dashicons dashicons-no-alt"></span></button>
+		</div>
+		<div class="slcrm-modal-body">
+			<div class="slcrm-form-field">
+				<label for="slcrm-qa-name"><?php esc_html_e( 'Customer Name', 'smart-lead-crm' ); ?></label>
+				<input type="text" id="slcrm-qa-name" placeholder="John Doe" />
+			</div>
+			<div class="slcrm-form-field">
+				<label for="slcrm-qa-phone"><?php esc_html_e( 'Phone Number', 'smart-lead-crm' ); ?></label>
+				<input type="text" id="slcrm-qa-phone" placeholder="919876543210" />
+			</div>
+			<div class="slcrm-form-field">
+				<label for="slcrm-qa-email"><?php esc_html_e( 'Email (optional)', 'smart-lead-crm' ); ?></label>
+				<input type="email" id="slcrm-qa-email" placeholder="customer@example.com" />
+			</div>
+			<div class="slcrm-form-field">
+				<label for="slcrm-qa-source"><?php esc_html_e( 'Lead Source', 'smart-lead-crm' ); ?></label>
+				<select id="slcrm-qa-source">
+					<option value="manual"><?php esc_html_e( 'Manual', 'smart-lead-crm' ); ?></option>
+					<?php foreach ( $helper->get_lead_sources() as $k => $l ) : ?>
+						<option value="<?php echo esc_attr( $k ); ?>"><?php echo esc_html( $l ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</div>
+		</div>
+		<div class="slcrm-modal-footer">
+			<button class="slcrm-btn slcrm-btn-outline slcrm-modal-close" type="button"><?php esc_html_e( 'Cancel', 'smart-lead-crm' ); ?></button>
+			<button class="slcrm-btn slcrm-btn-primary" id="slcrm-qa-save" type="button"><?php esc_html_e( 'Add Lead', 'smart-lead-crm' ); ?></button>
 		</div>
 	</div>
 </div>
