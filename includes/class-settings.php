@@ -25,6 +25,9 @@ class Smart_Lead_CRM_Settings {
 		'whatsapp_business_number'      => '',
 		'whatsapp_api_version'          => 'v18.0',
 		'whatsapp_default_country_code' => '91',
+		'auto_reply_enabled'            => 'no',
+		'auto_reply_template'          => '',
+		'google_ads_daily_spend'        => '',
 	);
 
 	public function __construct() {
@@ -69,7 +72,7 @@ class Smart_Lead_CRM_Settings {
 	}
 
 	public function register_settings() {
-		$checkbox_keys = array( 'capture_gclid', 'capture_utm', 'capture_organic_keywords', 'enable_debug' );
+		$checkbox_keys = array( 'capture_gclid', 'capture_utm', 'capture_organic_keywords', 'enable_debug', 'auto_reply_enabled' );
 		foreach ( array_keys( $this->defaults ) as $key ) {
 			$option_name = $this->prefix . $key;
 			if ( in_array( $key, $checkbox_keys, true ) ) {
