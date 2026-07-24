@@ -19,6 +19,7 @@ $form_trackings = $db->get_form_trackings();
 		<div class="slcrm-settings-tabs">
 			<a href="#" class="slcrm-settings-tab active" data-tab="business"><span class="dashicons dashicons-building"></span><?php esc_html_e( 'Business', 'smart-lead-crm' ); ?></a>
 			<a href="#" class="slcrm-settings-tab" data-tab="whatsapp"><span class="dashicons dashicons-whatsapp"></span><?php esc_html_e( 'WhatsApp', 'smart-lead-crm' ); ?></a>
+			<a href="#" class="slcrm-settings-tab" data-tab="autoreply"><span class="dashicons dashicons-megaphone"></span><?php esc_html_e( 'Auto-Reply', 'smart-lead-crm' ); ?></a>
 			<a href="#" class="slcrm-settings-tab" data-tab="tracking"><span class="dashicons dashicons-chart-bar"></span><?php esc_html_e( 'Tracking', 'smart-lead-crm' ); ?></a>
 			<a href="#" class="slcrm-settings-tab" data-tab="conversions"><span class="dashicons dashicons-target"></span><?php esc_html_e( 'Conversions', 'smart-lead-crm' ); ?></a>
 			<a href="#" class="slcrm-settings-tab" data-tab="forms"><span class="dashicons dashicons-feedback"></span><?php esc_html_e( 'Form Tracking', 'smart-lead-crm' ); ?></a>
@@ -84,6 +85,25 @@ $form_trackings = $db->get_form_trackings();
 					<tr><th><label for="smart_lead_crm_whatsapp_access_token"><?php esc_html_e( 'Access Token', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_access_token" name="smart_lead_crm_whatsapp_access_token" value="<?php echo esc_attr( $settings->get( 'whatsapp_access_token' ) ); ?>" placeholder="EAAG…" class="regular-text" autocomplete="off" /></td></tr>
 					<tr><th><label for="smart_lead_crm_whatsapp_phone_number_id"><?php esc_html_e( 'Phone Number ID', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_phone_number_id" name="smart_lead_crm_whatsapp_phone_number_id" value="<?php echo esc_attr( $settings->get( 'whatsapp_phone_number_id' ) ); ?>" placeholder="123456789012345" class="regular-text" /></td></tr>
 					<tr><th><label for="smart_lead_crm_whatsapp_api_version"><?php esc_html_e( 'API Version', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_api_version" name="smart_lead_crm_whatsapp_api_version" value="<?php echo esc_attr( $settings->get( 'whatsapp_api_version', 'v18.0' ) ); ?>" placeholder="v18.0" style="max-width:120px;" /></td></tr>
+				</table>
+				<p style="color:var(--gray-400);font-size:12px;margin-top:12px;"><?php esc_html_e( 'App Mode: CRM generates wa.me links for manual sending. Cloud API: automated send/receive. Coexistence: both work together.', 'smart-lead-crm' ); ?></p>
+			</div>
+		</div>
+
+		<div id="slcrm-tab-autoreply" class="slcrm-tab-panel">
+			<div class="slcrm-card" style="max-width:680px;">
+				<h3 style="margin-bottom:8px;"><?php esc_html_e( 'Auto-Reply', 'smart-lead-crm' ); ?></h3>
+				<p style="color:var(--gray-500);font-size:13px;margin-bottom:20px;"><?php esc_html_e( 'Automatically send a WhatsApp message when a new lead is captured. Responding within 5 minutes increases conversion by up to 21x.', 'smart-lead-crm' ); ?></p>
+				<table class="slcrm-detail-table">
+					<tr><th><?php esc_html_e( 'Enable Auto-Reply', 'smart-lead-crm' ); ?></th><td><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" name="smart_lead_crm_auto_reply_enabled" value="yes" <?php checked( $settings->get( 'auto_reply_enabled', 'no' ), 'yes' ); ?> /> <span><?php esc_html_e( 'Send automatic WhatsApp message when a lead is created', 'smart-lead-crm' ); ?></span></label></td></tr>
+					<tr><th><label for="smart_lead_crm_auto_reply_template"><?php esc_html_e( 'Reply Template', 'smart-lead-crm' ); ?></label></th><td>
+						<textarea id="smart_lead_crm_auto_reply_template" name="smart_lead_crm_auto_reply_template" rows="4" class="large-text" placeholder="Hi! Thanks for reaching out to {business_name}. We'll get back to you within 10 minutes."><?php echo esc_textarea( $settings->get( 'auto_reply_template' ) ); ?></textarea>
+						<p class="description"><?php esc_html_e( 'Use {business_name} and {customer_name} as placeholders.', 'smart-lead-crm' ); ?></p>
+					</td></tr>
+				</table>
+				<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Ad Spend (for ROI Dashboard)', 'smart-lead-crm' ); ?></h3>
+				<table class="slcrm-detail-table">
+					<tr><th><label for="smart_lead_crm_google_ads_daily_spend"><?php esc_html_e( 'Daily Google Ads Spend', 'smart-lead-crm' ); ?></label></th><td><input type="number" id="smart_lead_crm_google_ads_daily_spend" name="smart_lead_crm_google_ads_daily_spend" value="<?php echo esc_attr( $settings->get( 'google_ads_daily_spend' ) ); ?>" placeholder="500" class="regular-text" /> <span style="color:var(--gray-400);font-size:13px;margin-left:6px;"><?php esc_html_e( 'in your currency', 'smart-lead-crm' ); ?></span><p class="description"><?php esc_html_e( 'Used to calculate ROI on the dashboard. Enter your average daily Google Ads budget.', 'smart-lead-crm' ); ?></p></td></tr>
 				</table>
 			</div>
 		</div>
