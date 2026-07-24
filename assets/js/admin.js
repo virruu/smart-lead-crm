@@ -288,4 +288,33 @@
         });
     });
 
+    /* ── Quick Add Lead FAB + Modal ── */
+    $('#slcrm-quick-add-fab').on('click', function () {
+        $('#slcrm-quick-add-modal').addClass('active');
+    });
+    $(document).on('click', '.slcrm-modal-close, .slcrm-modal-overlay', function (e) {
+        if (e.target === this) $('#slcrm-quick-add-modal').removeClass('active');
+    });
+    $('#slcrm-qa-save').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('Adding...');
+        $.post(ajaxUrl, {
+            action: 'slcrm_quick_add_lead', nonce: nonce,
+            name: $('#slcrm-qa-name').val(),
+            phone: $('#slcrm-qa-phone').val(),
+            email: $('#slcrm-qa-email').val(),
+            lead_source: $('#slcrm-qa-source').val()
+        }).done(function (res) {
+            if (res.success && res.data.redirect) {
+                window.location.href = res.data.redirect;
+            } else {
+                alert(res.data || 'Failed to add lead');
+                $btn.prop('disabled', false).text('Add Lead');
+            }
+        }).fail(function () {
+            alert('Server error. Please try again.');
+            $btn.prop('disabled', false).text('Add Lead');
+        });
+    });
+
 }(jQuery));
