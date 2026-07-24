@@ -41,7 +41,24 @@
         $card.find('input[type="radio"]').prop('checked', true);
         $card.closest('.slcrm-mode-cards').find('.slcrm-mode-card').removeClass('slcrm-mode-card--active');
         $card.addClass('slcrm-mode-card--active');
+        slcrmSyncWaMode();
     });
+
+    function slcrmSyncWaMode() {
+        var mode = $('input[name="smart_lead_crm_whatsapp_connection_mode"]:checked').val();
+        if (!mode) return;
+        $('.slcrm-wa-section').each(function () {
+            var modes = $(this).data('modes') || '';
+            if (modes.split(' ').indexOf(mode) > -1) {
+                $(this).slideDown(200);
+            } else {
+                $(this).slideUp(200);
+            }
+        });
+    }
+
+    // Init on page load
+    if ($('#slcrm-wa-mode-cards').length) slcrmSyncWaMode();
 
     // Save lead
     var $saveNotice = $('#slcrm-save-notice');
