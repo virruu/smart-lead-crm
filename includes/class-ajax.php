@@ -18,6 +18,7 @@ class Smart_Lead_CRM_Ajax {
 		add_action( 'wp_ajax_slcrm_delete_conversion',  array( $this, 'delete_conversion' ) );
 		add_action( 'wp_ajax_slcrm_save_form_tracking', array( $this, 'save_form_tracking' ) );
 		add_action( 'wp_ajax_slcrm_delete_form_tracking', array( $this, 'delete_form_tracking' ) );
+		add_action( 'wp_ajax_slcrm_quick_add_lead', array( $this, 'quick_add_lead' ) );
 	}
 
 	public function auto_create_lead() {
@@ -75,6 +76,12 @@ class Smart_Lead_CRM_Ajax {
 			if ( $action_remark && ( empty( $existing->remarks ) || false !== strpos( $existing->remarks, 'Auto-created:' ) ) ) {
 				$update['remarks'] = $form_name ? $action_remark . ' (' . $form_name . ')' : $action_remark;
 			}
+			if ( $action_type && empty( $existing->lead_action ) ) {
+				$update['lead_action'] = $action_type;
+			}
+			if ( $form_name && empty( $existing->form_name ) ) {
+				$update['form_name'] = $form_name;
+			}
 			$update['last_updated'] = current_time( 'mysql' );
 			$db->update_lead( $existing->id, $update );
 
@@ -88,6 +95,8 @@ class Smart_Lead_CRM_Ajax {
 			'name'         => $name ?: 'Website Visitor',
 			'phone'        => $phone ?: '',
 			'status'       => 'new_lead',
+			'lead_action'  => $action_type,
+			'form_name'    => $form_name,
 			'remarks'      => $remarks,
 			'lead_source'  => $attr['source'],
 			'medium'       => $attr['medium'],
@@ -118,6 +127,10 @@ class Smart_Lead_CRM_Ajax {
 		$lead_id = $db->insert_lead( $lead_data );
 		if ( $lead_id ) {
 			$this->log_tracking( $lead_id, $visitor_id, $signals );
+			$lead_obj = $db->get_lead( $lead_id );
+			if ( $lead_obj && $lead_obj->phone ) {
+				smart_lead_crm()->messaging->send_auto_reply( $lead_obj );
+			}
 		}
 
 		$helper->log( "Auto lead created: lead_id=$lead_id, visitor=$visitor_id, source={$attr['source']}" );
@@ -331,5 +344,32 @@ class Smart_Lead_CRM_Ajax {
 		if ( ! $id ) wp_send_json_error( 'Missing ID' );
 		slcrm_db()->delete_form_tracking( $id );
 		wp_send_json_success();
+	}
+
+	/* ── Quick Add Lead ─────────────────────────────────────── */
+
+	public function quick_add_lead() {
+		$this->verify_admin();
+		$name   = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+		$phone = sanitize_text_field( wp_unslash( $_POST['phone'] ?? '' ) );
+		$email = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
+		$source = sanitize_text_field( wp_unslash( $_POST['lead_source'] ?? 'manual' ) );
+
+		if ( ! $name && ! $phone ) wp_send_json_error( 'Name or phone required' );
+
+		$data = array(
+			'name'        => $name ?: 'Manual Lead',
+			'phone'       => $phone,
+			'email'       => $email,
+			'status'      => 'new_lead',
+			'lead_source' => $source,
+			'lead_action' => 'manual',
+			'remarks'     => 'Manually added',
+		);
+
+		$lead_id = slcrm_db()->insert_lead( $data );
+		if ( ! $lead_id ) wp_send_json_error( 'Failed to create lead' );
+
+		wp_send_json_success( array( 'lead_id' => $lead_id, 'redirect' => admin_url( 'admin.php?page=smart-lead-crm-leads&action=view&lead_id=' . $lead_id ) ) );
 	}
 }
