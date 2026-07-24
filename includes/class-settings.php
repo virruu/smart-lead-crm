@@ -23,7 +23,7 @@ class Smart_Lead_CRM_Settings {
 		'whatsapp_phone_number_id'      => '',
 		'whatsapp_verify_token'         => '',
 		'whatsapp_business_number'      => '',
-		'whatsapp_api_version'          => 'v18.0',
+		'whatsapp_api_version'          => 'v21.0',
 		'whatsapp_default_country_code' => '91',
 		'auto_reply_enabled'            => 'no',
 		'auto_reply_template'          => '',
