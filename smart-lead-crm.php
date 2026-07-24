@@ -3,15 +3,15 @@
  * Plugin Name: Smart Lead CRM
  * Plugin URI:  https://smartleadcrm.com
  * Description: WhatsApp-first CRM with multi-mode connection, full attribution tracking, and customer intelligence. Fully automated lead capture — no forms needed.
- * Version:     2.0.1
+ * Version:     2.1.0
  * Author:      Smart Lead CRM
  * License:     GPL-2.0+
  * Text Domain: smart-lead-crm
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'SMART_LEAD_CRM_VERSION',    '2.0.1' );
-define( 'SMART_LEAD_CRM_DB_VERSION', '2.0.1' );
+define( 'SMART_LEAD_CRM_VERSION',    '2.1.0' );
+define( 'SMART_LEAD_CRM_DB_VERSION', '2.1.0' );
 define( 'SMART_LEAD_CRM_PLUGIN_FILE', __FILE__ );
 define( 'SMART_LEAD_CRM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'SMART_LEAD_CRM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
