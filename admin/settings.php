@@ -49,15 +49,16 @@ $form_trackings = $db->get_form_trackings();
 		</div>
 
 		<div id="slcrm-tab-whatsapp" class="slcrm-tab-panel">
-			<div class="slcrm-card" style="max-width:780px;">
+			<div class="slcrm-card" style="max-width:800px;">
 				<h3 style="margin-bottom:4px;"><?php esc_html_e( 'Connection Mode', 'smart-lead-crm' ); ?></h3>
-				<p style="color:var(--gray-500);font-size:13px;margin-bottom:20px;"><?php esc_html_e( 'Choose how WhatsApp connects to your CRM.', 'smart-lead-crm' ); ?></p>
-				<div class="slcrm-mode-cards">
+				<p style="color:var(--gray-500);font-size:13px;margin-bottom:20px;"><?php esc_html_e( 'Choose how WhatsApp connects to your CRM. Settings below will update based on your selection.', 'smart-lead-crm' ); ?></p>
+
+				<div class="slcrm-mode-cards" id="slcrm-wa-mode-cards">
 					<?php
 					$opts = array(
-						'app_mode'    => array( 'label'=>__('WhatsApp Business App','smart-lead-crm'), 'desc'=>__('Keep using your phone. CRM reads messages.','smart-lead-crm'), 'icon'=>'phone' ),
-						'cloud_api'   => array( 'label'=>__('Cloud API','smart-lead-crm'), 'desc'=>__('Official Meta API. Full send/receive.','smart-lead-crm'), 'icon'=>'cloud' ),
-						'coexistence' => array( 'label'=>__('Coexistence','smart-lead-crm'), 'desc'=>__('App + API together. Premium.','smart-lead-crm'), 'icon'=>'sync' ),
+						'app_mode'    => array( 'label' => __( 'WhatsApp Business App', 'smart-lead-crm' ), 'desc' => __( 'Keep using your phone. CRM generates wa.me links.', 'smart-lead-crm' ), 'icon' => 'phone' ),
+						'cloud_api'   => array( 'label' => __( 'Cloud API', 'smart-lead-crm' ),             'desc' => __( 'Official Meta API. Full automated send/receive.', 'smart-lead-crm' ),  'icon' => 'cloud' ),
+						'coexistence' => array( 'label' => __( 'Coexistence', 'smart-lead-crm' ),           'desc' => __( 'Use Business App + Cloud API together.', 'smart-lead-crm' ),          'icon' => 'controls-repeat' ),
 					);
 					foreach ( $opts as $mk => $mv ) :
 					?>
@@ -69,24 +70,89 @@ $form_trackings = $db->get_form_trackings();
 					</label>
 					<?php endforeach; ?>
 				</div>
-				<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Business Number', 'smart-lead-crm' ); ?></h3>
+
+				<!-- Always visible: business number -->
+				<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Your WhatsApp Number', 'smart-lead-crm' ); ?></h3>
 				<table class="slcrm-detail-table">
-					<tr><th><label for="smart_lead_crm_whatsapp_business_number"><?php esc_html_e( 'WhatsApp Number', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_business_number" name="smart_lead_crm_whatsapp_business_number" value="<?php echo esc_attr( $settings->get( 'whatsapp_business_number' ) ); ?>" placeholder="919876543210" class="regular-text" /><p class="description"><?php esc_html_e( 'Include country code, no + or spaces.', 'smart-lead-crm' ); ?></p></td></tr>
-					<tr><th><label for="smart_lead_crm_whatsapp_default_country_code"><?php esc_html_e( 'Default Country Code', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_default_country_code" name="smart_lead_crm_whatsapp_default_country_code" value="<?php echo esc_attr( $settings->get( 'whatsapp_default_country_code', '91' ) ); ?>" placeholder="91" style="max-width:80px;" /><p class="description"><?php esc_html_e( 'Used when normalizing phone numbers.', 'smart-lead-crm' ); ?></p></td></tr>
+					<tr><th><label for="smart_lead_crm_whatsapp_business_number"><?php esc_html_e( 'Business Number', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_business_number" name="smart_lead_crm_whatsapp_business_number" value="<?php echo esc_attr( $settings->get( 'whatsapp_business_number' ) ); ?>" placeholder="919876543210" class="regular-text" /><p class="description"><?php esc_html_e( 'Include country code, no + or spaces. E.g. 919876543210 for India.', 'smart-lead-crm' ); ?></p></td></tr>
+					<tr><th><label for="smart_lead_crm_whatsapp_default_country_code"><?php esc_html_e( 'Default Country Code', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_default_country_code" name="smart_lead_crm_whatsapp_default_country_code" value="<?php echo esc_attr( $settings->get( 'whatsapp_default_country_code', '91' ) ); ?>" placeholder="91" style="max-width:80px;" /><p class="description"><?php esc_html_e( 'Prepended when a lead phone number has no country code.', 'smart-lead-crm' ); ?></p></td></tr>
 				</table>
-				<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Webhook', 'smart-lead-crm' ); ?></h3>
-				<table class="slcrm-detail-table">
-					<tr><th><?php esc_html_e( 'Webhook URL', 'smart-lead-crm' ); ?></th><td><code style="font-size:12px;word-break:break-all;"><?php echo esc_html( rest_url( 'slcrm/v1/webhook' ) ); ?></code></td></tr>
-					<tr><th><label for="smart_lead_crm_whatsapp_verify_token"><?php esc_html_e( 'Verify Token', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_verify_token" name="smart_lead_crm_whatsapp_verify_token" value="<?php echo esc_attr( $settings->get( 'whatsapp_verify_token' ) ); ?>" placeholder="my_verify_token" class="regular-text" /></td></tr>
-				</table>
-				<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Cloud API Credentials', 'smart-lead-crm' ); ?></h3>
-				<p style="color:var(--gray-500);font-size:13px;margin-bottom:16px;"><?php esc_html_e( 'Only required for Cloud API or Coexistence mode. Leave blank for App Mode.', 'smart-lead-crm' ); ?></p>
-				<table class="slcrm-detail-table">
-					<tr><th><label for="smart_lead_crm_whatsapp_access_token"><?php esc_html_e( 'Access Token', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_access_token" name="smart_lead_crm_whatsapp_access_token" value="<?php echo esc_attr( $settings->get( 'whatsapp_access_token' ) ); ?>" placeholder="EAAG…" class="regular-text" autocomplete="off" /></td></tr>
-					<tr><th><label for="smart_lead_crm_whatsapp_phone_number_id"><?php esc_html_e( 'Phone Number ID', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_phone_number_id" name="smart_lead_crm_whatsapp_phone_number_id" value="<?php echo esc_attr( $settings->get( 'whatsapp_phone_number_id' ) ); ?>" placeholder="123456789012345" class="regular-text" /></td></tr>
-					<tr><th><label for="smart_lead_crm_whatsapp_api_version"><?php esc_html_e( 'API Version', 'smart-lead-crm' ); ?></label></th><td><input type="text" id="smart_lead_crm_whatsapp_api_version" name="smart_lead_crm_whatsapp_api_version" value="<?php echo esc_attr( $settings->get( 'whatsapp_api_version', 'v18.0' ) ); ?>" placeholder="v18.0" style="max-width:120px;" /></td></tr>
-				</table>
-				<p style="color:var(--gray-400);font-size:12px;margin-top:12px;"><?php esc_html_e( 'App Mode: CRM generates wa.me links for manual sending. Cloud API: automated send/receive. Coexistence: both work together.', 'smart-lead-crm' ); ?></p>
+
+				<!-- APP MODE: setup guide -->
+				<div class="slcrm-wa-section" data-modes="app_mode">
+					<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'App Mode — How It Works', 'smart-lead-crm' ); ?></h3>
+					<div class="slcrm-setup-steps" style="margin-bottom:0;">
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">1</div><div><strong><?php esc_html_e( 'Enter your business number above', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'The CRM will generate wa.me links pointing to this number.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">2</div><div><strong><?php esc_html_e( 'No API key needed', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'When a lead is captured, the CRM shows a wa.me deep-link button. Click it to open WhatsApp on your phone and send messages manually.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">3</div><div><strong><?php esc_html_e( 'Save settings', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'That\'s it — no further configuration required for App Mode.', 'smart-lead-crm' ); ?></p></div></div>
+					</div>
+				</div>
+
+				<!-- CLOUD API + COEXISTENCE: credentials + setup guide -->
+				<div class="slcrm-wa-section" data-modes="cloud_api coexistence">
+					<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Cloud API — Step-by-Step Setup', 'smart-lead-crm' ); ?></h3>
+					<div class="slcrm-setup-steps">
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">1</div><div><strong><?php esc_html_e( 'Create a Meta Developer App', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'Go to developers.facebook.com → My Apps → Create App. Choose "Business" type. Connect it to your Meta Business Manager.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">2</div><div><strong><?php esc_html_e( 'Add the WhatsApp product', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'Inside your app dashboard click "Add Product" and select WhatsApp. This creates a WhatsApp Business Account (WABA) linked to your app.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">3</div><div><strong><?php esc_html_e( 'Add and verify your phone number', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'WhatsApp → API Setup → Add Phone Number. The number must NOT already be active on WhatsApp — if it is, delete that account in the WhatsApp app first, then register here. Verify with OTP.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">4</div><div><strong><?php esc_html_e( 'Get a Permanent Access Token (System User)', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'Temporary tokens expire in 24 hours. For production use a permanent System User token: Business Manager → Settings → System Users → Add → Admin → Generate Token → select your WhatsApp app → grant whatsapp_business_messaging + whatsapp_business_management permissions. Copy the token below.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">5</div><div><strong><?php esc_html_e( 'Copy your Phone Number ID', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'In WhatsApp → API Setup, select your phone number from the dropdown. The numeric "Phone number ID" (15+ digits) is shown just below — copy it into the field below. This is different from your actual phone number.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">6</div><div><strong><?php esc_html_e( 'Register the Webhook', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'In your Meta App → WhatsApp → Configuration → Webhooks: paste the Webhook URL below, enter your Verify Token (any secret string you choose), click Verify. Then subscribe to the "messages" field.', 'smart-lead-crm' ); ?></p></div></div>
+						<div class="slcrm-setup-step"><div class="slcrm-step-num">7</div><div><strong><?php esc_html_e( 'Go Live', 'smart-lead-crm' ); ?></strong><p><?php esc_html_e( 'Your app starts in Development mode (can only message numbers added as test contacts). To message any number: submit your app for Business Verification in Meta Business Manager, then set the app to Live mode in the app dashboard.', 'smart-lead-crm' ); ?></p></div></div>
+					</div>
+
+					<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Webhook', 'smart-lead-crm' ); ?></h3>
+					<table class="slcrm-detail-table">
+						<tr>
+							<th><?php esc_html_e( 'Webhook URL', 'smart-lead-crm' ); ?></th>
+							<td>
+								<code id="slcrm-webhook-url-text" style="font-size:12px;word-break:break-all;user-select:all;"><?php echo esc_html( rest_url( 'slcrm/v1/webhook' ) ); ?></code>
+								<button type="button" class="slcrm-btn slcrm-btn-outline slcrm-btn-sm slcrm-copy-btn" style="margin-left:10px;" data-copy="<?php echo esc_attr( rest_url( 'slcrm/v1/webhook' ) ); ?>">
+									<span class="dashicons dashicons-admin-page"></span> <?php esc_html_e( 'Copy', 'smart-lead-crm' ); ?>
+								</button>
+								<p class="description"><?php esc_html_e( 'Paste this as your Webhook Callback URL in the Meta App dashboard.', 'smart-lead-crm' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="smart_lead_crm_whatsapp_verify_token"><?php esc_html_e( 'Verify Token', 'smart-lead-crm' ); ?></label></th>
+							<td>
+								<input type="text" id="smart_lead_crm_whatsapp_verify_token" name="smart_lead_crm_whatsapp_verify_token" value="<?php echo esc_attr( $settings->get( 'whatsapp_verify_token' ) ); ?>" placeholder="e.g. mySecretToken123" class="regular-text" />
+								<p class="description"><?php esc_html_e( 'Any secret string you choose. Enter the same value in Meta\'s Webhook verification field.', 'smart-lead-crm' ); ?></p>
+							</td>
+						</tr>
+					</table>
+
+					<h3 style="margin:28px 0 8px;"><?php esc_html_e( 'Cloud API Credentials', 'smart-lead-crm' ); ?></h3>
+					<table class="slcrm-detail-table">
+						<tr>
+							<th><label for="smart_lead_crm_whatsapp_access_token"><?php esc_html_e( 'Permanent Access Token', 'smart-lead-crm' ); ?></label></th>
+							<td>
+								<input type="password" id="smart_lead_crm_whatsapp_access_token" name="smart_lead_crm_whatsapp_access_token" value="<?php echo esc_attr( $settings->get( 'whatsapp_access_token' ) ); ?>" placeholder="EAAG…" class="regular-text" autocomplete="new-password" />
+								<p class="description"><?php esc_html_e( 'Use a System User token (never expires). Found in Business Manager → System Users.', 'smart-lead-crm' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="smart_lead_crm_whatsapp_phone_number_id"><?php esc_html_e( 'Phone Number ID', 'smart-lead-crm' ); ?></label></th>
+							<td>
+								<input type="text" id="smart_lead_crm_whatsapp_phone_number_id" name="smart_lead_crm_whatsapp_phone_number_id" value="<?php echo esc_attr( $settings->get( 'whatsapp_phone_number_id' ) ); ?>" placeholder="123456789012345" class="regular-text" />
+								<p class="description"><?php esc_html_e( 'The numeric ID shown under WhatsApp → API Setup (not your phone number itself).', 'smart-lead-crm' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="smart_lead_crm_whatsapp_api_version"><?php esc_html_e( 'API Version', 'smart-lead-crm' ); ?></label></th>
+							<td>
+								<input type="text" id="smart_lead_crm_whatsapp_api_version" name="smart_lead_crm_whatsapp_api_version" value="<?php echo esc_attr( $settings->get( 'whatsapp_api_version', 'v21.0' ) ); ?>" placeholder="v21.0" style="max-width:120px;" />
+								<p class="description"><?php esc_html_e( 'Current stable version is v21.0. Only change this if Meta releases a newer version.', 'smart-lead-crm' ); ?></p>
+							</td>
+						</tr>
+					</table>
+
+					<div style="margin-top:20px;padding:14px 16px;background:var(--primary-50,#eff6ff);border:1px solid var(--primary-200,#bfdbfe);border-radius:var(--radius-sm);font-size:13px;color:var(--primary-700,#1d4ed8);">
+						<strong><?php esc_html_e( 'Coexistence note:', 'smart-lead-crm' ); ?></strong>
+						<?php esc_html_e( 'Coexistence lets the same number work in both the WhatsApp Business App on your phone AND the Cloud API simultaneously. Enable it in Meta App → WhatsApp → Configuration → Coexistence. Both the App Mode wa.me links and Cloud API automated messages will work at the same time.', 'smart-lead-crm' ); ?>
+					</div>
+				</div>
+
 			</div>
 		</div>
 
