@@ -186,13 +186,16 @@ class Smart_Lead_CRM_Messaging {
 
 	public function send_message( $to, $body ) {
 		$mode = slcrm_get_setting( 'whatsapp_connection_mode', 'app_mode' );
-		if ( 'app_mode' === $mode ) return false;
+
+		if ( 'app_mode' === $mode ) {
+			return array( 'success' => false, 'mode' => 'app_mode', 'deep_link' => $this->build_wa_link( $to, $body ) );
+		}
 
 		$token    = slcrm_get_setting( 'whatsapp_access_token', '' );
 		$phone_id = slcrm_get_setting( 'whatsapp_phone_number_id', '' );
 		$version  = slcrm_get_setting( 'whatsapp_api_version', 'v18.0' );
 
-		if ( ! $token || ! $phone_id ) return false;
+		if ( ! $token || ! $phone_id ) return array( 'success' => false, 'mode' => $mode, 'error' => 'missing_credentials' );
 
 		$response = wp_remote_post( "https://graph.facebook.com/{$version}/{$phone_id}/messages", array(
 			'headers' => array(
@@ -208,9 +211,110 @@ class Smart_Lead_CRM_Messaging {
 			'timeout' => 30,
 		) );
 
-		if ( is_wp_error( $response ) ) return false;
+		if ( is_wp_error( $response ) ) return array( 'success' => false, 'mode' => $mode, 'error' => $response->get_error_message() );
+
 		$code = wp_remote_retrieve_response_code( $response );
-		return $code >= 200 && $code < 300;
+		$resp_body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( $code >= 200 && $code < 300 ) {
+			return array( 'success' => true, 'mode' => $mode, 'message_id' => $resp_body['messages'][0]['id'] ?? '' );
+		}
+		return array( 'success' => false, 'mode' => $mode, 'error' => $resp_body['error']['message'] ?? "HTTP {$code}" );
+	}
+
+	public function build_wa_link( $phone, $text = '' ) {
+		$business = slcrm_get_setting( 'whatsapp_business_number', '' );
+		$from = $business ? $business : '';
+		$url = 'https://wa.me/' . $phone;
+		if ( $text ) $url .= '?text=' . rawurlencode( $text );
+		return $url;
+	}
+
+	public function send_template_message( $to, $template_name, $language = 'en', $components = array() ) {
+		$token    = slcrm_get_setting( 'whatsapp_access_token', '' );
+		$phone_id = slcrm_get_setting( 'whatsapp_phone_number_id', '' );
+		$version  = slcrm_get_setting( 'whatsapp_api_version', 'v18.0' );
+
+		if ( ! $token || ! $phone_id ) return array( 'success' => false, 'error' => 'missing_credentials' );
+
+		$body = array(
+			'messaging_product' => 'whatsapp',
+			'to'                => $to,
+			'type'              => 'template',
+			'template'          => array(
+				'name'       => $template_name,
+				'language'   => array( 'code' => $language ),
+				'components' => $components,
+			),
+		);
+
+		$response = wp_remote_post( "https://graph.facebook.com/{$version}/{$phone_id}/messages", array(
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $token,
+				'Content-Type'  => 'application/json',
+			),
+			'body'    => wp_json_encode( $body ),
+			'timeout' => 30,
+		) );
+
+		if ( is_wp_error( $response ) ) return array( 'success' => false, 'error' => $response->get_error_message() );
+
+		$code = wp_remote_retrieve_response_code( $response );
+		$resp_body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( $code >= 200 && $code < 300 ) {
+			return array( 'success' => true, 'message_id' => $resp_body['messages'][0]['id'] ?? '' );
+		}
+		return array( 'success' => false, 'error' => $resp_body['error']['message'] ?? "HTTP {$code}" );
+	}
+
+	public function send_auto_reply( $lead ) {
+		if ( ! $lead ) return;
+
+		$auto_reply_enabled = slcrm_get_setting( 'auto_reply_enabled', 'no' );
+		if ( 'yes' !== $auto_reply_enabled ) return;
+
+		$phone = preg_replace( '/[^0-9]/', '', $lead->phone );
+		if ( strlen( $phone ) < 8 ) return;
+
+		$business_name = slcrm_get_setting( 'business_name', get_bloginfo( 'name' ) );
+		$template      = slcrm_get_setting( 'auto_reply_template', '' );
+		if ( ! $template ) {
+			$template = "Hi! Thanks for reaching out to {business_name}. We'll get back to you within 10 minutes. For immediate assistance, call us directly.";
+		}
+
+		$message = str_replace( '{business_name}', $business_name, $template );
+		$message = str_replace( '{customer_name}', $lead->name ?: '', $message );
+
+		$mode = slcrm_get_setting( 'whatsapp_connection_mode', 'app_mode' );
+		if ( 'app_mode' === $mode ) return;
+
+		$result = $this->send_message( $phone, $message );
+		if ( is_array( $result ) && $result['success'] ) {
+			$conv_id = $this->get_or_create_conversation( $lead );
+			if ( $conv_id ) {
+				$this->conversation->insert_message( array(
+					'conversation_id' => $conv_id,
+					'direction'       => 'outbound',
+					'text'            => $message,
+					'message_type'    => 'text',
+					'status'          => 'sent',
+				) );
+			}
+		}
+	}
+
+	private function get_or_create_conversation( $lead ) {
+		$business_phone_id = slcrm_get_setting( 'whatsapp_phone_number_id', '' );
+		$platform_conv_id = 'wa_' . md5( $lead->id . $business_phone_id );
+		$conv = $this->conversation->get_conversation( $platform_conv_id );
+		if ( $conv ) return (int) $conv->id;
+		return $this->conversation->upsert_conversation( array(
+			'lead_id'         => $lead->id,
+			'conversation_id' => $platform_conv_id,
+			'customer_name'   => $lead->name,
+			'customer_phone'  => $lead->phone,
+		) );
 	}
 
 	public function normalize_phone( $phone ) {
@@ -242,20 +346,32 @@ class Smart_Lead_CRM_Messaging {
 
 		$to = preg_replace( '/[^0-9]/', '', $lead->phone );
 
-		$sent = $this->send_message( $to, $text );
-		if ( ! $sent ) wp_send_json_error( 'Failed to send (check Cloud API credentials)' );
+		$result = $this->send_message( $to, $text );
 
-		$this->conversation->insert_message( array(
-			'conversation_id' => $conv_id,
-			'direction'       => 'outbound',
-			'text'            => $text,
-			'message_type'    => 'text',
-			'status'          => 'sent',
-		) );
-
-		$this->wpdb_update_conv_time( $conv_id );
-
-		wp_send_json_success( array( 'sent' => true ) );
+		if ( is_array( $result ) && $result['success'] ) {
+			$this->conversation->insert_message( array(
+				'conversation_id' => $conv_id,
+				'direction'       => 'outbound',
+				'text'            => $text,
+				'message_type'    => 'text',
+				'status'          => 'sent',
+			) );
+			$this->wpdb_update_conv_time( $conv_id );
+			wp_send_json_success( array( 'sent' => true, 'message_id' => $result['message_id'] ?? '' ) );
+		} elseif ( is_array( $result ) && 'app_mode' === ( $result['mode'] ?? '' ) ) {
+			$this->conversation->insert_message( array(
+				'conversation_id' => $conv_id,
+				'direction'       => 'outbound',
+				'text'            => $text,
+				'message_type'    => 'text',
+				'status'          => 'pending',
+			) );
+			$this->wpdb_update_conv_time( $conv_id );
+			wp_send_json_success( array( 'sent' => false, 'deep_link' => $result['deep_link'] ?? '', 'mode' => 'app_mode' ) );
+		} else {
+			$error = is_array( $result ) ? ( $result['error'] ?? 'Unknown error' ) : 'Failed to send';
+			wp_send_json_error( $error );
+		}
 	}
 
 	public function assign_conversation_ajax() {
