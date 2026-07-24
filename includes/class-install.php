@@ -48,6 +48,8 @@ class Smart_Lead_CRM_Installer {
 			browser VARCHAR(50) NOT NULL DEFAULT '',
 			ip_address VARCHAR(100) NOT NULL DEFAULT '',
 			customer_mobile VARCHAR(50) NOT NULL DEFAULT '',
+			lead_action VARCHAR(50) NOT NULL DEFAULT '',
+			form_name VARCHAR(100) NOT NULL DEFAULT '',
 			visitor_id VARCHAR(36) NOT NULL DEFAULT '',
 			remarks TEXT NOT NULL DEFAULT '',
 			last_updated DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
