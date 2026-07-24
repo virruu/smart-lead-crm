@@ -331,6 +331,49 @@ class Smart_Lead_CRM_DB {
 		);
 	}
 
+	public function get_today_triggers() {
+		$today = current_time( 'Y-m-d' );
+		return $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT lead_action, COUNT(*) as count FROM {$this->tables['leads']}
+			 WHERE lead_action != '' AND DATE(created_at) = %s
+			 GROUP BY lead_action ORDER BY count DESC",
+			$today
+		) );
+	}
+
+	public function get_follow_ups() {
+		$threshold = gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS );
+		return $this->wpdb->get_results( $this->wpdb->prepare(
+			"SELECT * FROM {$this->tables['leads']}
+			 WHERE status IN ('new_lead','follow-up','pending')
+			 AND last_updated < %s
+			 ORDER BY last_updated ASC
+			 LIMIT 10",
+			$threshold
+		) );
+	}
+
+	public function get_overdue_count() {
+		$threshold = gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS );
+		return (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->tables['leads']}
+			 WHERE status IN ('new_lead','follow-up','pending')
+			 AND last_updated < %s",
+			$threshold
+		) );
+	}
+
+	public function get_revenue_by_campaign() {
+		return $this->wpdb->get_results(
+			"SELECT l.campaign, COUNT(DISTINCT l.id) as leads, COUNT(b.id) as bookings,
+			 COALESCE(SUM(b.fare), 0) as revenue
+			 FROM {$this->tables['leads']} l
+			 LEFT JOIN {$this->tables['bookings']} b ON b.lead_id = l.id
+			 WHERE l.campaign != ''
+			 GROUP BY l.campaign ORDER BY revenue DESC LIMIT 10"
+		);
+	}
+
 	/* ── Report Data ───────────────────────────────────────── */
 
 	public function get_report_data( $start, $end ) {
