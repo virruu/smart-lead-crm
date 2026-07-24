@@ -193,7 +193,7 @@ class Smart_Lead_CRM_Messaging {
 
 		$token    = slcrm_get_setting( 'whatsapp_access_token', '' );
 		$phone_id = slcrm_get_setting( 'whatsapp_phone_number_id', '' );
-		$version  = slcrm_get_setting( 'whatsapp_api_version', 'v18.0' );
+		$version  = slcrm_get_setting( 'whatsapp_api_version', 'v21.0' );
 
 		if ( ! $token || ! $phone_id ) return array( 'success' => false, 'mode' => $mode, 'error' => 'missing_credentials' );
 
@@ -233,7 +233,7 @@ class Smart_Lead_CRM_Messaging {
 	public function send_template_message( $to, $template_name, $language = 'en', $components = array() ) {
 		$token    = slcrm_get_setting( 'whatsapp_access_token', '' );
 		$phone_id = slcrm_get_setting( 'whatsapp_phone_number_id', '' );
-		$version  = slcrm_get_setting( 'whatsapp_api_version', 'v18.0' );
+		$version  = slcrm_get_setting( 'whatsapp_api_version', 'v21.0' );
 
 		if ( ! $token || ! $phone_id ) return array( 'success' => false, 'error' => 'missing_credentials' );
 
